@@ -39,4 +39,4 @@ Each skill folder contains a `SKILL.md` (the core instructions) and a `reference
 
 ## Author
 
-Built by [Abian Biya](https://github.com/abianbiya) — CS student at Universitas Negeri Semarang, exploring AI-assisted software development.
+Built by [Abi Anbiya](https://github.com/abianbiya) — Software Developer at Universitas Negeri Semarang, exploring AI-assisted software development.
