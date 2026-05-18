@@ -1,0 +1,33 @@
+# OS and editor noise
+.DS_Store
+.vscode/
+
+# Hidden tooling dirs
+.aidocs/
+.claude/
+.kiro/
+.ruff_cache/
+
+# Build artifacts and exports
+*.zip
+*.skill
+*.html
+
+# Root-level markdown summaries (not skill docs)
+myunnes-base.md
+myunnes-base-design.md
+myunnes-base-documentation.md
+
+# Skills not yet published — remove from this list when ready to ship
+laravel-expert/
+mysql/
+myunnes-base/
+myunnes-base-design/
+myunnes-base-dev/
+other-claude-skills/
+powers/
+skills/
+spec-executor/
+spec-planner/
+ubold/
+laralag/
