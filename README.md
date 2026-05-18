@@ -27,13 +27,47 @@ Spec-driven development orchestrator. Transforms a rough feature idea into struc
 
 ---
 
+## Installation
+
+### Quick install via degit (recommended)
+
+[`degit`](https://github.com/Rich-Harris/degit) pulls just the skill folder from this repo — no need to clone everything.
+
+**Global** — available in all your projects:
+```bash
+npx degit abianbiya/skills/specflow ~/.claude/skills/specflow
+```
+
+**Project-level** — current project only:
+```bash
+npx degit abianbiya/skills/specflow .claude/skills/specflow
+```
+
+### Update
+
+Same command — `degit` always fetches the latest:
+```bash
+npx degit abianbiya/skills/specflow ~/.claude/skills/specflow
+```
+
+### Manual install
+
+```bash
+git clone https://github.com/abianbiya/skills.git
+cp -r skills/specflow ~/.claude/skills/specflow
+```
+
+---
+
 ## How to Use
 
-1. Copy a skill folder (e.g. `specflow/`) into your project's skill directory or your global Claude Code skills path
-2. Invoke it with the matching slash command (e.g. `/specflow`)
-3. Follow the prompts
+Once installed, invoke the skill with its slash command in Claude Code:
 
-Each skill folder contains a `SKILL.md` (the core instructions) and a `references/` directory with detailed phase guidance.
+```
+/specflow <your feature idea>
+```
+
+Each skill contains a `SKILL.md` (the core instructions) and a `references/` directory with detailed phase guidance.
 
 ---
 
