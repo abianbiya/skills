@@ -2,11 +2,14 @@
 
 ## Package Location
 
-```
-packages/abianbiya/laralag/
-```
+Installed via Composer at `vendor/abianbiya/laralag/`.
+GitHub: https://github.com/abianbiya/laralag
+
+Do not modify files under `vendor/` — changes are overwritten on `composer update`.
 
 ## Directory Structure
+
+All paths below are relative to `vendor/abianbiya/laralag/`.
 
 ```
 src/
@@ -120,7 +123,7 @@ Display filtered by: `is_tampil` flag AND user's active permissions.
 
 ## setting() Helper
 
-Global function defined in `src/Helpers/AutoloadHelper.php`. Full documentation in the main skill guide (Config Management Module section).
+Global function defined in `vendor/abianbiya/laralag/src/Helpers/AutoloadHelper.php`. Full documentation in the main skill guide (Config Management Module section).
 
 ```php
 setting('key')            // returns current_value ?? default_value

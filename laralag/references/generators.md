@@ -210,7 +210,7 @@ Scans all routes with `permission:` middleware and creates/updates Permission re
 
 ## Stubs
 
-Located at `resources/stubs/`:
+Located at `vendor/abianbiya/laralag/resources/stubs/` inside the package. Do not edit these directly — modify the generated output in `app/Modules/` instead. Stub list for reference:
 - `controller.plain.stub` - Web CRUD controller
 - `controller.api.stub` - API REST controller
 - `model.plain.stub` - Eloquent model

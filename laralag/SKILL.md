@@ -7,10 +7,10 @@ description: "Expert guide for the Laralag Laravel package — CRUD generator an
 
 ## Package Location
 
-```
-packages/abianbiya/laralag/
-```
+Installed via Composer at `vendor/abianbiya/laralag/`.
+GitHub: https://github.com/abianbiya/laralag
 
+**Do not edit files under `vendor/`** — changes are overwritten on `composer update`.
 Generated app modules go to `app/Modules/`.
 
 ## Quick Reference
@@ -134,7 +134,7 @@ Individual settings within a group. Managed via `ConfigController` (not `ConfigG
 
 Fields: `config_group_id`, `key` (unique dot-notation e.g. `general.app_name`), `config_name`, `default_value`, `current_value`, `form_type`, `form_options` (JSON), `is_multiple`, `form_label`, `form_placeholder`, `form_help`, `validation_rules`, `urutan`, `is_tampil`.
 
-Config item routes are in `src/Modules/Config/routes.php` and named `configitem.*`:
+Config item routes (defined inside the package) are named `configitem.*`:
 - `GET /config-item/create` → `configitem.create`
 - `POST /config-item` → `configitem.store`
 - `GET /config-item/{config}/edit` → `configitem.edit`
@@ -163,7 +163,7 @@ setting('display.pagination', 10)   // with fallback default
 
 - Caches all config values under key `'laralag-config'` for 1 hour
 - Cache is cleared (`Cache::forget('laralag-config')`) on any `ConfigController::update()` call
-- Defined in `src/Helpers/AutoloadHelper.php`
+- Defined in `vendor/abianbiya/laralag/src/Helpers/AutoloadHelper.php`
 
 ### Tables
 
@@ -178,24 +178,10 @@ Settings page access: `config.index`.
 
 ---
 
-## When Modifying the Package
+## Customizing the Package
 
-### Adding a new built-in module
-1. Create `src/Modules/{Name}/` with Controllers, Models, Views, routes.php
-2. Follow existing module patterns (copy Role or User module)
-3. Add seeder for initial data in `src/Seeders/`
-4. Add permissions to `PermissionTableSeeder`
-5. Add menu entries to `MenuTableSeeder` and `ModuleTableSeeder`
-
-### Modifying stubs
-- Stubs are at `resources/stubs/`
-- Placeholder tokens are replaced by `GenerateModule` command
-- Test changes by generating a module after editing
-
-### Extending RBAC
-- Add new session keys in `HasPermissions` trait
-- Update `CheckPermission` middleware for new auth logic
-- Update `Sidebar` component query for new visibility rules
+### Generated module files
+After `lag:module` generates code into `app/Modules/{Name}/`, those files are yours to modify freely — controller, model, views, and routes all live in your project, not in vendor.
 
 ### Adding application settings
 Prefer the Config/ConfigGroup module over editing `config/laralag.php`:
@@ -204,9 +190,12 @@ Prefer the Config/ConfigGroup module over editing `config/laralag.php`:
 3. Read values in code with `setting('group-slug.key')`
 4. The settings page at `/config` provides the admin UI for editing values
 
-To add to `config/laralag.php` directly (for non-user-editable options):
+To add non-user-editable options:
 - Add to `config/laralag.php`
 - Reference via `config('laralag.your_key')`
+
+### Generator stubs
+The stubs used by `lag:module` live at `vendor/abianbiya/laralag/resources/stubs/`. If you need to customize what the generator produces, copy the relevant stub into your project and check the package's GitHub for whether stub publishing is supported. In most cases it is simpler to generate and then edit the output in `app/Modules/`.
 
 ---
 
