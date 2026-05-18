@@ -9,4 +9,4 @@
 .ruff_cache/
 
 # Exploration, drafts, and unpublished work
-workspace/
+_workspace/
