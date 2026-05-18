@@ -15,9 +15,45 @@ Create `.specflow/specs/active/{feature_name}/requirements.md`
 
 ---
 
+## Grilling Mode (Optional)
+
+Analyze the feature idea and surface the questions that would most change the spec if answered differently. Questions are contextual — they emerge from reasoning about the specific feature, not a fixed template. Present them as a single block, each paired with your recommendation and brief reasoning.
+
+### What to Look For
+
+- **Ambiguities** — things the user stated that could be interpreted multiple ways
+- **Race conditions and concurrency** — what happens when two users do the same thing simultaneously?
+- **Edge cases** — what happens at the boundaries of the happy path?
+- **Hidden decisions** — assumptions you're about to bake into the spec that the user might not share
+- **Integration constraints** — third-party systems that impose rules the user may not have considered
+
+**Example (billiard booking app with Midtrans payment):**
+
+```
+1. Race conditions on table booking
+   If two users book the same table at the same time, how should this be handled?
+   My recommendation: hold the slot only after payment confirms — first completed payment wins,
+   the second gets "table unavailable" immediately. This avoids double-bookings at the cost of
+   no soft-hold during checkout. Does that match your expectation?
+
+2. Booking cancellation and refunds
+   Can users cancel a booking, and what's the refund policy?
+   My assumption: cancellable up to X hours before the slot, with a configurable refund window.
+   You'll want to define this clearly since it directly affects the Midtrans flow.
+
+3. Table availability unit
+   Is a booking per-table or per-time-slot across all tables?
+   My assumption: per-table — users pick a specific table and a time slot.
+   Is that right, or do users just book "a table" and one gets assigned?
+```
+
+After the user answers, use their confirmed intent as the foundation for requirements.md — then continue to Step 1.
+
+---
+
 ## Step 1: Initial Generation
 
-Generate requirements from the rough idea **WITHOUT asking sequential questions first**.
+Generate requirements from the rough idea **WITHOUT asking sequential questions first** (unless grilling mode was requested).
 
 ### Consider These Aspects:
 - **Functional requirements**: What the system must do

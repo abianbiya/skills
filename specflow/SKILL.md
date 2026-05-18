@@ -21,6 +21,8 @@ Guide users through spec-driven development by transforming rough feature ideas 
 |-------------|--------|
 | First spec / no project.md yet | Create .specflow/project.md first — see [references/project-setup.md](references/project-setup.md) |
 | New feature idea / "new spec" | Start at Phase 1: Requirements (create in active/) |
+| "Grill me" / "ask me questions first" | Grilling Mode at Phase 1: clarify before generating |
+| "Grill the design" / "discuss architecture first" | Grilling Mode at Phase 2: align on key decisions before designing |
 | Update requirements | Go to Phase 1: Requirements |
 | Update design | Go to Phase 2: Design |
 | Update tasks | Go to Phase 3: Tasks |
@@ -56,6 +58,20 @@ Guide users through spec-driven development by transforming rough feature ideas 
 ```
 
 **Naming:** Use kebab-case for feature names (e.g., `user-authentication`, `add-2fa-to-auth`)
+
+---
+
+## Grilling Mode (Optional)
+
+An opt-in alignment session that runs before generating at Phase 1 or Phase 2. Instead of producing a document immediately, the agent analyzes the specific feature idea, identifies the ambiguities and decisions that would most change the spec if answered differently, and asks about those — each paired with a recommendation.
+
+**Trigger phrases:** "grill me", "ask me questions first", "let's discuss this", "grill the design" (Phase 2 variant)
+
+**Key principle:** Questions are contextual, not templated. The agent reasons about the feature and asks what actually matters for it — race conditions, data model forks, integration constraints, hidden assumptions. A booking app gets asked about concurrency and payment state; a reporting tool gets asked about data freshness and access control.
+
+**Format:** Present all questions as a single block. For each, state the question, the recommendation, and brief reasoning. The user confirms or redirects — they don't have to answer from scratch.
+
+Full guidance in [references/requirements-phase.md](references/requirements-phase.md) and [references/design-phase.md](references/design-phase.md).
 
 ---
 
@@ -128,16 +144,17 @@ Guide users through spec-driven development by transforming rough feature ideas 
 
 ### Quick Steps
 
-1. **Generate initial requirements** from the rough idea (don't ask sequential questions first)
-2. **Format document** with:
+1. **Optional: Grilling mode** — if requested, run Phase 1 question set before generating (see [references/requirements-phase.md](references/requirements-phase.md))
+2. **Generate initial requirements** from the rough idea (or from grilling answers if grilled)
+3. **Format document** with:
    - Introduction (what, why, who, scope)
    - Requirements with user stories
    - EARS acceptance criteria
    - Out of Scope section
    - Assumptions and Dependencies
-3. **Ask for review:** "Do the requirements look good? If so, we can move on to the design."
-4. **Iterate** until explicit approval received
-5. **Only proceed** to Design after clear approval ("yes", "approved", "looks good")
+4. **Ask for review:** "Do the requirements look good? If so, we can move on to the design."
+5. **Iterate** until explicit approval received
+6. **Only proceed** to Design after clear approval ("yes", "approved", "looks good")
 
 ### EARS Pattern Quick Reference
 
@@ -160,7 +177,8 @@ Guide users through spec-driven development by transforming rough feature ideas 
 
 1. **Read requirements.md** before starting
 2. **Conduct research** as needed (summarize in conversation, don't create separate files)
-3. **Create design document** with:
+3. **Optional: Grilling mode** — if requested, surface 3-4 key architectural decisions with recommendations before generating (see [references/design-phase.md](references/design-phase.md))
+4. **Create design document** with:
    - Overview
    - Architecture (with Mermaid diagrams)
    - Components and Interfaces
@@ -170,8 +188,8 @@ Guide users through spec-driven development by transforming rough feature ideas 
    - Testing Strategy
    - Security & Performance Considerations
    - Requirements Traceability
-4. **Ask for review:** "Does the design look good? If so, we can move on to the implementation plan."
-5. **Iterate** until explicit approval received
+5. **Ask for review:** "Does the design look good? If so, we can move on to the implementation plan."
+6. **Iterate** until explicit approval received
 
 ---
 

@@ -37,6 +37,41 @@ Before writing the design, gather necessary context:
 
 ---
 
+## Step 1b: Design Grilling (Optional)
+
+Appropriate when the feature involves architectural choices with real trade-offs. Analyze the requirements and surface the decisions that would most change the design if answered differently. Present as a single block, each with your recommendation and reasoning.
+
+### What to Look For
+
+- **Data model forks** — choices in table structure or relationships that are hard to change later
+- **Coupling decisions** — whether components should call each other directly or go through an event/queue
+- **Consistency vs. availability trade-offs** — especially where concurrent writes are possible
+- **API shape** — choices in endpoint design that affect the client contract
+- **Ownership and access** — who can read/write each resource, and how that maps to the data model
+
+**Example (billiard booking with Laravel + React):**
+
+```
+1. Booking status flow
+   My proposed states: pending → confirmed → completed / cancelled.
+   Payment triggers confirmed. Should there be a "held" state during checkout,
+   or does the booking only exist post-payment?
+
+2. Table-level locking strategy
+   My recommendation: optimistic locking with a unique constraint on (table_id, slot_start).
+   The DB rejects the second insert; the API returns a 409. Simpler than a queue-based hold,
+   but means no "soft reservation" during payment. Acceptable?
+
+3. Admin vs. user data separation
+   The admin interface is Laravel; the user interface is React calling the same API?
+   Or are these two separate backends?
+   My assumption: one Laravel backend, two frontends (React SPA + Laravel Blade admin).
+```
+
+After the user confirms, generate design.md using the agreed decisions. Capture confirmed choices in the Design Decisions table with the reasoning stated here.
+
+---
+
 ## Step 2: Document Structure
 
 ### Complete Template
