@@ -18,12 +18,21 @@ Spec-driven development orchestrator. Transforms a rough feature idea into struc
 
 ---
 
+### [laralag](./laralag/)
+
+Expert guide for the [Laralag](https://github.com/abianbiya/laralag) Laravel package — a CRUD generator and access management system. Gives an AI agent full awareness of the package conventions so it can generate modules, configure RBAC, manage menus, and work with the built-in settings system without constant hand-holding.
+
+**Covers:** `lag:module` / `lag:api` / `lag:migration` generators · RBAC (roles, permissions, scopes, session caching) · menu hierarchy · Config/ConfigGroup settings module · `setting()` helper · debugging permissions
+
+**Best for:** Any Laravel project using the Laralag package.
+
+---
+
 ## Coming Soon
 
 | Skill | Description |
 |-------|-------------|
 | `myunnes-base` | Conventions, patterns, and domain knowledge for the UNNES base system |
-| `laralag` | Expert guide for the Laralag Laravel package — CRUD generation and RBAC |
 
 ---
 
