@@ -29,32 +29,31 @@ Spec-driven development orchestrator. Transforms a rough feature idea into struc
 
 ## Installation
 
-### Quick install via degit (recommended)
+Uses [`npx skills`](https://github.com/vercel-labs/skills) — a universal CLI for installing agent skills from any GitHub repo.
 
-[`degit`](https://github.com/Rich-Harris/degit) pulls just the skill folder from this repo — no need to clone everything.
-
-**Global** — available in all your projects:
+**Install all skills:**
 ```bash
-npx degit abianbiya/skills/specflow ~/.claude/skills/specflow
+npx skills add abianbiya/skills
 ```
 
-**Project-level** — current project only:
+**Install a specific skill:**
 ```bash
-npx degit abianbiya/skills/specflow .claude/skills/specflow
+npx skills add abianbiya/skills -s specflow
+```
+
+**Install globally** (available across all projects):
+```bash
+npx skills add abianbiya/skills -s specflow -g
 ```
 
 ### Update
 
-Same command — `degit` always fetches the latest:
+Re-run the same command to pull the latest version.
+
+### Manual install (fallback)
+
 ```bash
 npx degit abianbiya/skills/specflow ~/.claude/skills/specflow
-```
-
-### Manual install
-
-```bash
-git clone https://github.com/abianbiya/skills.git
-cp -r skills/specflow ~/.claude/skills/specflow
 ```
 
 ---
