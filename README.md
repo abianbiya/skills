@@ -28,6 +28,22 @@ Expert guide for the [Laralag](https://github.com/abianbiya/laralag) Laravel pac
 
 ---
 
+### [speclet](./speclet/)
+
+Lightweight spec-driven development for small features — one spec file (`.speclet/{feature}.md`) capturing requirements, EARS-lite acceptance criteria, design notes, and a coding checklist, with a single approval gate before any code is written.
+
+**Workflow:** Draft → Approval → Validated execution → Report
+
+**Best for:** Small features where a full SpecFlow workflow would be excessive.
+
+**Also available as a pi package** — bundles the skill with a live checklist panel, `/speclet` picker, details popup, and task inspector:
+
+```bash
+pi install npm:@abianbiya/speclet
+```
+
+---
+
 ## Coming Soon
 
 | Skill | Description |

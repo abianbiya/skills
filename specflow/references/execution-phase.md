@@ -1,282 +1,55 @@
-# Execution Phase
+# Phase 4: Execution
 
-## Overview
+## Session Context
 
-Execute implementation tasks one at a time, validating each against requirements and design specifications before marking complete. This phase ensures traceability and quality throughout implementation.
+Identify the active spec and verify the [planning approvals](../SKILL.md#core-contract). Project context must exist; all three planning documents must be approved.
 
-**Key Principle:** Execute ONE task at a time, validate against specs, mark complete, then STOP.
+At the start of an execution session, read `.specflow/project.md` and the feature's `requirements.md`, `design.md`, and `tasks.md` in full once. Load referenced completed-spec context only where relevant. Retain the requirement mapping, design structure, task order/dependencies, and project conventions in session context.
 
-## Prerequisites
+An execution session spans successive task requests for the same spec while that context remains available. A user-review pause does not start a new session. If context is lost or a different spec is selected, establish the full baseline again. If files change, refresh affected sections and dependencies; changes to approved planning content must pass the root approval gates before execution resumes.
 
-- All three spec documents must exist and be approved:
-  - `.specflow/project.md` (project-level context)
-  - `.specflow/specs/active/{feature_name}/requirements.md`
-  - `.specflow/specs/active/{feature_name}/design.md`
-  - `.specflow/specs/active/{feature_name}/tasks.md`
-- Check `.specflow/specs/completed/` for related specs that may provide context
+## Task Scope and Delta Reads
 
----
+For “execute next task,” select the first unchecked task in listed order whose declared dependencies are validated and integrated. For a specified task, verify that it is unchecked and its dependencies are complete. An explicit range such as “execute tasks 1.1–1.4” or list authorizes those tasks only, in dependency order, sequentially by default; do not silently add prerequisites or expand the range. Skip already checked tasks and report them as skipped.
 
-## Step 1: Read All Specs (Mandatory)
+For each task after the baseline, load only:
 
-Before executing ANY task, read all relevant documents:
+- Its current unchecked task line and scope/reference sub-bullets, plus dependency or parent status needed to select it.
+- The referenced requirement IDs and their acceptance criteria, using the [ID convention](requirements-phase.md#document-content).
+- The design sections it touches, including relevant shared interfaces and constraints.
 
-```markdown
-1. project.md - Understand project conventions, tech stack, patterns
-2. requirements.md - Understand WHAT to build and WHY
-3. design.md - Understand HOW to build (architecture, patterns)
-4. tasks.md - Understand WHAT task to execute next
-5. Related specs (if referenced) - Check completed/ for context
-```
+Reuse unchanged project and broader spec context; do not reload entire documents per task. Resolve unclear scope from these excerpts before asking the user. Missing IDs, unmet dependencies, or remaining ambiguity block execution of that task.
 
-**Why this matters:**
-- Project.md defines conventions and standards to follow
-- Requirements define acceptance criteria for validation
-- Design defines architecture and patterns to follow
-- Tasks define execution order and dependencies
-- Related specs provide context from previous work
+Implement within this scope using the approved design and project conventions. Requirements and design are read-only during execution; route needed changes to their planning phase. Clarified task wording may be updated without silently changing approved scope.
 
-Read all specs at the start of an execution session. Re-read only if the session was interrupted and context was lost.
+## Parallel Execution (Optional)
 
+Use subagents only within an explicitly authorized batch, when the user permits delegation and the harness supports it. Otherwise follow the same dependency flow sequentially. Only ready tasks with no dependency between them may run together.
 
----
+The parent assigns bounded task scopes, relevant context excerpts, and file ownership. Use disjoint files where shared-tree parallel writers are permitted; otherwise use separate worktrees or run sequentially. Account for shared interfaces, generated files, and mutable test resources as well as dependency edges. Follow harness limits and repository delegation rules.
 
-## Step 2: Identify Next Task
+Children implement and return changes plus validation evidence; the parent owns integration, final validation, and `tasks.md` updates. A child report alone does not complete a task. Integrate and validate prerequisite results before launching dependents.
 
-Scan tasks.md to find the first unchecked task:
+On an unresolved failure, stop dispatching new tasks, safely pause or collect already-running work, preserve edits, and report completed, failed, and unstarted tasks. Do not start dependents of failed work.
 
-```markdown
-First unchecked box: - [ ] {task number} {task description}
-```
+## Validation
 
-### If user specifies a task number:
-- Jump to that specific task
-- Verify it's unchecked
-- Check that dependencies (previous tasks) are complete
+Before changing a task checkbox, verify all three levels:
 
-### Sub-task handling:
-```markdown
-- [ ] 1. Parent Task
-  - [ ] 1.1 Sub-task A  ← Execute this first
-  - [ ] 1.2 Sub-task B  ← Then this
-- [ ] 2. Next Parent    ← Only after 1.1 and 1.2 complete
-```
+| Level | Evidence required |
+|-------|-------------------|
+| Requirements | Every referenced acceptance criterion passes, including its specified edge, error, and success cases. A whole-requirement reference includes all its criteria. |
+| Design | Touched components/layers, schemas and relationships, interfaces, API behavior, error handling, and state management match the approved design. |
+| Quality | Tests for new testable logic cover normal and error paths; project tests, lint, and applicable type checks pass; functionality runs without errors or warnings. Find commands in project context or repository configuration. |
 
-**Rule:** Complete all sub-tasks before marking parent complete.
+If a task cannot independently satisfy its referenced criteria, resolve the task/spec mismatch through planning rather than claiming partial validation as a pass. If checks fail, fix within the authorized task and revalidate. If blocked or unable to run required checks, leave it unchecked, report the evidence and resolution options, and stop for user guidance. For a parallel batch, apply the failure handling above.
 
----
+Only after all levels pass, change that task from `- [ ]` to `- [x]`. Complete children before checking a parent; check the parent's own scope too. In sequential execution, validate and update each task before starting the next; parallel execution follows the integration rules above.
 
-## Step 3: Execute the Task
+For “validate implementation,” apply these same levels to the requested scope (the whole implementation if unspecified), using the session/delta context rules. Report findings without implementing fixes or changing checkboxes unless requested.
 
-Implement the task following these guidelines:
+## Report and Stop
 
-### 3.1 Check Requirements Reference
+Report task IDs and outcomes, changed files, requirement/criterion evidence, design conformance, checks run and results, and any blockers or remaining work. For a batch, give one consolidated report with per-task results, including skipped or unexecuted tasks.
 
-Find which requirements this task addresses:
-```markdown
-- [ ] 2.1 Implement User model - _Requirements: 1.1, 1.2_
-```
-
-Read those specific requirements and their acceptance criteria.
-
-### 3.2 Follow Design Patterns
-
-Check design.md for:
-- Component architecture (which layer/module?)
-- Data models (correct schema?)
-- Interfaces (correct method signatures?)
-- Error handling strategy
-
-### 3.3 Match Codebase Conventions
-
-- Follow existing code style
-- Use established patterns
-- Maintain consistency
-
-### 3.4 Write Tests
-
-If task involves testable logic:
-- Write unit tests for new functionality
-- Cover happy path and error cases
-- Ensure tests pass before proceeding
-
----
-
-## Step 4: Validate Implementation
-
-**DO NOT mark task complete until validation passes.**
-
-### Level 1: Requirements Validation
-
-For each requirement ID referenced in the task:
-
-1. **Locate the requirement** in requirements.md
-2. **Check each acceptance criterion:**
-
-```markdown
-✓ WHEN user enters valid credentials THEN system SHALL authenticate
-  → Does code authenticate valid credentials? YES/NO
-  
-✓ IF authentication fails THEN system SHALL display error message
-  → Does code return error on invalid credentials? YES/NO
-```
-
-3. **Validation checklist:**
-- [ ] All acceptance criteria from referenced requirements implemented
-- [ ] Edge cases from requirements handled
-- [ ] Error conditions addressed
-- [ ] Success conditions work correctly
-
-
-### Level 2: Design Validation
-
-Verify implementation follows design.md:
-
-**Architecture:**
-- [ ] Code is in correct layer (frontend/backend/data)
-- [ ] Code is in correct module/package
-- [ ] Proper separation of concerns
-
-**Data Models:**
-- [ ] Correct schema/structure used
-- [ ] Proper relationships maintained
-- [ ] Required fields present
-
-**Interfaces:**
-- [ ] Correct method signatures
-- [ ] Expected parameters
-- [ ] Return types match
-
-**Patterns:**
-- [ ] API endpoints match design
-- [ ] Error handling follows strategy
-- [ ] State management matches specification
-
-### Level 3: Quality Validation
-
-**Testing:** Run the project's test command (from project.md or package.json/Makefile/etc.)
-- [ ] Tests exist for new functionality
-- [ ] All tests passing
-
-**Linting:** Run the project's lint command
-- [ ] No linting errors
-
-**Type Checking (if applicable):** Run the project's type check command
-- [ ] No type errors
-
-**Functionality:**
-- [ ] Code runs without errors
-- [ ] No console errors or warnings
-
----
-
-## Step 5: Mark Task Complete
-
-Only after ALL validation levels pass:
-
-```markdown
-Before:  - [ ] 1.1 Create User model
-After:   - [x] 1.1 Create User model
-```
-
-Update the tasks.md file with the completed checkbox.
-
----
-
-## Step 6: Report and STOP
-
-Report completion to user:
-
-```markdown
-Completed task {number}: {description}
-
-Requirements Validation:
-- REQ-{ID}: {brief verification}
-- All acceptance criteria satisfied
-
-Design Validation:
-- Follows {architecture pattern}
-- Uses {specified technology}
-- Implements {interface} correctly
-
-Quality Validation:
-- Tests passing ({X} tests)
-- Linting passed
-- No errors or warnings
-
-Implementation:
-- {file path}: {brief description}
-
-Ready for next task when you are.
-```
-
-**STOP HERE.** Do not proceed to next task without user approval.
-
-
----
-
-## Special Cases
-
-### Case 1: Task References Multiple Requirements
-
-```markdown
-- [ ] 1.3 Implement login endpoint - Requirements: 1.1, 1.2, 2.1
-```
-
-Validate against ALL referenced requirements before marking complete.
-
-### Case 2: Blocked Task
-
-If task cannot be completed due to:
-- Missing dependency
-- Unclear requirement
-- Technical blocker
-
-**Action:**
-1. Report the blocker clearly
-2. Suggest resolution options
-3. Do NOT mark task complete
-4. Wait for user guidance
-
-### Case 3: Task Needs Clarification
-
-If task description is ambiguous:
-
-1. Check requirements.md for context
-2. Check design.md for architectural guidance
-3. If still unclear, ask user for clarification
-4. Optionally update tasks.md with clarified description
-5. Then proceed with execution
-
-### Case 4: Validation Fails
-
-**DO NOT mark task complete.**
-
-```markdown
-Task {number} validation failed:
-
-Issues found:
-- Requirement 1.2 criterion 2 not satisfied
-- Tests failing: 3/10 tests fail
-- Linting errors: 5 style violations
-
-Fixing issues...
-```
-
-Fix all issues, then re-validate before marking complete.
-
-### Case 5: All Tasks Complete
-
-When no unchecked tasks remain:
-
-```markdown
-All implementation tasks completed.
-
-Summary:
-- {X} tasks completed
-- All requirements addressed
-- All tests passing
-
-Next step: use "complete spec" to move this to completed/ and make it reference documentation.
-```
-
+Stop after the default single task or the explicitly authorized batch and wait for the user before further execution. When all tasks are checked, report readiness for the explicit [complete spec](lifecycle-phase.md#complete) action; do not change its lifecycle status automatically.
