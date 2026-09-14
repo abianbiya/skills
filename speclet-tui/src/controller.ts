@@ -5,7 +5,7 @@
  */
 
 import { discoverSpeclets, type SpecletFile } from "./speclet.js";
-import { selectActive } from "./render.js";
+import { allSpecletsDone, selectActive } from "./render.js";
 
 export interface ControllerHooks {
 	/** The rendered content of the active speclet changed (or appeared/disappeared). */
@@ -20,6 +20,12 @@ export class SpecletController {
 	pinned: string | undefined;
 	/** Panel visibility, toggled from the /speclet picker. Session-scoped. */
 	hidden = false;
+	/**
+	 * The user explicitly asked for the panel (picked a speclet, or "Show panel").
+	 * This is what overrides the all-done auto-hide, so an explicit choice always
+	 * wins over the automatic rule. Cleared by hide() and stop().
+	 */
+	revealed = false;
 
 	private timer: ReturnType<typeof setTimeout> | undefined;
 	private generation = 0;
@@ -45,12 +51,32 @@ export class SpecletController {
 
 	hide(): void {
 		this.hidden = true;
+		this.revealed = false;
 		this.refreshSnapshot();
 	}
 
 	show(): void {
 		this.hidden = false;
 		this.refreshSnapshot();
+	}
+
+	/** Explicit user intent (picker "Show panel" / picking a speclet): also
+	 * overrides the all-done auto-hide until the panel is hidden again. */
+	reveal(): void {
+		this.hidden = false;
+		this.revealed = true;
+		this.refreshSnapshot();
+	}
+
+	/**
+	 * Whether the panel should render right now: there is a speclet to show, the
+	 * user has not hidden it, and — once every speclet is finished — only if the
+	 * user asked for it explicitly.
+	 */
+	panelVisible(): boolean {
+		if (this.hidden) return false;
+		if (!this.active()) return false;
+		return this.revealed || !allSpecletsDone(this.files);
 	}
 
 	/** Scan once now; safe to call directly (used by tests and start()). */
@@ -85,6 +111,7 @@ export class SpecletController {
 		this.files = [];
 		this.pinned = undefined;
 		this.hidden = false;
+		this.revealed = false;
 	}
 
 	private async loop(): Promise<void> {
@@ -98,8 +125,16 @@ export class SpecletController {
 	private refreshSnapshot(): void {
 		const active = this.active();
 		const signature = active
-			? JSON.stringify([this.hidden, active.filename, active.name, active.status, active.tasks, active.error ?? null])
-			: JSON.stringify([this.hidden]);
+			? JSON.stringify([
+					this.hidden,
+					this.revealed,
+					active.filename,
+					active.name,
+					active.status,
+					active.tasks,
+					active.error ?? null,
+				])
+			: JSON.stringify([this.hidden, this.revealed]);
 		if (signature !== this.lastSignature) {
 			this.lastSignature = signature;
 			this.hooks.onUpdate();

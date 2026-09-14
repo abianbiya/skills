@@ -289,7 +289,7 @@ export default function specletTui(pi: ExtensionAPI) {
 	function repaint(ctx: { ui: { setWidget: (key: string, content: unknown) => void } }) {
 		if (!controller) return;
 		const spec = controller.active();
-		if (!spec || controller.hidden) {
+		if (!spec || !controller.panelVisible()) {
 			ctx.ui.setWidget(WIDGET_KEY, undefined);
 			return;
 		}
@@ -383,11 +383,11 @@ export default function specletTui(pi: ExtensionAPI) {
 			}
 
 			const options = pickerOptions(controller.files);
-			const toggleLabel = controller.hidden ? "Show panel" : "Hide panel";
+			const toggleLabel = controller.panelVisible() ? "Hide panel" : "Show panel";
 			const choice = await ctx.ui.select("Speclet:", [...options.map((o) => o.label), toggleLabel, DETAILS_LABEL]);
 			if (choice === undefined) return; // cancelled — keep current selection (AC3)
 			if (choice === toggleLabel) {
-				controller.hidden ? controller.show() : controller.hide();
+				controller.panelVisible() ? controller.hide() : controller.reveal();
 				return;
 			}
 			if (choice === DETAILS_LABEL) {
@@ -402,7 +402,7 @@ export default function specletTui(pi: ExtensionAPI) {
 			const picked = options.find((o) => o.label === choice);
 			if (picked) {
 				controller.pin(picked.filename);
-				controller.show(); // picking a speclet also reveals the panel
+				controller.reveal(); // picking a speclet also reveals the panel
 			}
 		},
 	});

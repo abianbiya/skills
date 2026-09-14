@@ -1,10 +1,14 @@
 /**
- * render.ts — pure selection and rendering helpers. No imports: the widget's
- * width truncation is injected so tests can supply a reference implementation
- * and index.ts passes pi-tui's truncateToWidth.
+ * render.ts — pure selection and rendering helpers. Imports only ./shared.js
+ * (generic text primitives, re-exported here to keep call sites stable) and
+ * ./speclet.js: the widget's width truncation is injected so tests can supply
+ * a reference implementation and index.ts passes pi-tui's truncateToWidth.
  */
 
 import { stripControlSequences, type SpecletFile } from "./speclet.js";
+import { padVisible, renderScrollbar, visibleLen, wrapText } from "./shared.js";
+
+export { renderScrollbar, wrapText };
 
 /** Lower rank wins. Mirrors AC1: in-progress, approved, draft, done, then unknown. */
 const STATUS_RANK: Record<string, number> = {
@@ -14,6 +18,18 @@ const STATUS_RANK: Record<string, number> = {
 	done: 3,
 	unknown: 4,
 };
+
+/**
+ * True when every discovered speclet is finished (`status: done`). The panel
+ * hides itself in that state: there is nothing left to act on, and a permanent
+ * "(3/3) · done" row above the editor is just noise. An empty list is not
+ * "all done" — with no speclets the panel is hidden for the other reason.
+ * `unknown` (unreadable or status-less legacy) counts as unfinished so a broken
+ * speclet keeps surfacing instead of silently disappearing.
+ */
+export function allSpecletsDone(files: SpecletFile[]): boolean {
+	return files.length > 0 && files.every((f) => f.status === "done");
+}
 
 /**
  * Pick the speclet the panel shows. A pinned filename wins while it exists;
@@ -101,16 +117,6 @@ export function renderWidgetLines(
 	return [rule, truncate(heading, width), ...body];
 }
 
-/** One scrollbar track character per visible row: proportional thumb over a dim track. */
-export function renderScrollbar(total: number, visible: number, offset: number): string[] {
-	if (total <= 0 || visible <= 0) return [];
-	if (total <= visible) return Array.from({ length: visible }, () => " ");
-	const thumbSize = Math.max(1, Math.round((visible * visible) / total));
-	const denom = total - visible;
-	const thumbStart = Math.round((denom > 0 ? offset / denom : 0) * (visible - thumbSize));
-	return Array.from({ length: visible }, (_, i) => (i >= thumbStart && i < thumbStart + thumbSize ? "█" : "░"));
-}
-
 export interface DetailsRenderOptions {
 	/** Left padding for every content line (default: none). */
 	indent?: string;
@@ -122,72 +128,6 @@ export interface DetailsRenderOptions {
 	headerPreStyled?: boolean;
 	/** Frame the popup in a terminal-style box (content truncated to the inner width). */
 	border?: boolean;
-}
-
-/** Visible length of a line: ANSI escapes stripped, code points counted as one column. */
-function visibleLen(line: string): number {
-	return [...line.replace(/\x1b\[[0-9;:?]*[ -/]*[@-~]/g, "")].length;
-}
-
-/** Right-pad a (possibly styled) line with spaces to the visible width. */
-function padVisible(line: string, width: number): string {
-	return line + " ".repeat(Math.max(0, width - visibleLen(line)));
-}
-
-/**
- * Word-wrap a line to the visible width: continuation lines get two-space
- * indent (original leading indent preserved on the first line), overlong
- * words are hard-broken. ANSI escapes survive inside their chunk; styled
- * spans broken across lines lose styling on the continuation (accepted).
- */
-export function wrapText(line: string, width: number): string[] {
-	if (width <= 0 || visibleLen(line) <= width) return [line];
-	const firstIndent = (line.match(/^\s*/) ?? [""])[0];
-	const contIndent = firstIndent + "  ";
-	const usable = Math.max(1, width - contIndent.length);
-	const out: string[] = [];
-	let cur = firstIndent;
-	let curLen = visibleLen(cur);
-	let empty = cur.trim() === "";
-	const newline = () => {
-		cur = contIndent;
-		curLen = visibleLen(cur);
-		empty = true;
-	};
-	const emit = (s: string) => {
-		out.push(s);
-		newline();
-	};
-	for (const rawWord of line.slice(firstIndent.length).split(" ")) {
-		if (rawWord === "") continue;
-		let word = rawWord;
-		while (visibleLen(word) > usable) {
-			if (!empty) emit(cur);
-			let cut = "";
-			let w = 0;
-			for (const ch of word) {
-				const cw = visibleLen(ch);
-				if (w + cw > usable) break;
-				cut += ch;
-				w += cw;
-			}
-			emit(cur + cut);
-			word = word.slice(cut.length);
-		}
-		if (word === "") continue;
-		const sep = empty ? 0 : 1;
-		if (curLen + sep + visibleLen(word) <= width) {
-			cur = empty ? cur + word : `${cur} ${word}`;
-			curLen += sep + visibleLen(word);
-			empty = false;
-		} else {
-			if (!empty) emit(cur);
-			emit(cur + word);
-		}
-	}
-	if (!empty) out.push(cur);
-	else if (out.length === 0) out.push(cur);
-	return out;
 }
 
 /**

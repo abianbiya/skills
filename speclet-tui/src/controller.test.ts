@@ -1,5 +1,5 @@
 import { describe, test, expect, beforeEach, afterEach } from "bun:test";
-import { mkdtemp, mkdir, writeFile, readFile, rm, readdir } from "node:fs/promises";
+import { chmod, mkdtemp, mkdir, writeFile, readFile, rm, readdir } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createHash } from "node:crypto";
@@ -163,15 +163,25 @@ describe("SpecletController", () => {
 	test("poll loop refreshes from disk without overlapping", async () => {
 		await mkdir(specDir, { recursive: true });
 		const { controller, updates } = makeController(20);
+		// Scan once BEFORE the file exists: otherwise the first tick can already see it
+		// and the "hidden -> appearance" pair collapses into a single update (this used
+		// to flake as `Expected: > 1, Received: 1` depending on which async op won).
+		await controller.scan();
+		const before = updates.length;
 		controller.start();
 		await writeSpec("a.md", "# A\n");
-		await new Promise((r) => setTimeout(r, 400)); // generous window: 20 ticks at the 20 ms interval
+		// Wait for the appearance rather than sleeping a fixed window: a loaded machine
+		// can starve a 20 ms timer past any fixed budget.
+		const deadline = Date.now() + 1500;
+		while (controller.active()?.filename !== "a.md" && Date.now() < deadline) {
+			await new Promise((r) => setTimeout(r, 10));
+		}
 		const seen = controller.active()?.filename;
 		const updateCount = updates.length;
 		controller.stop(); // stop clears files; assert on pre-stop observations
 		expect(seen).toBe("a.md");
-		expect(updateCount).toBeGreaterThan(1); // initial hidden + appearance
-	}, 2000);
+		expect(updateCount).toBeGreaterThan(before);
+	}, 3000);
 
 	test("stop invalidates in-flight scan: no update after shutdown", async () => {
 		await mkdir(specDir, { recursive: true });
@@ -251,4 +261,97 @@ describe("SpecletController", () => {
 		expect(updates.length).toBeGreaterThan(baseline);
 		expect(elapsed).toBeLessThan(1000); // AC2: within 1 second
 	}, 5000);
+});
+
+describe("panel auto-hide when every speclet is done", () => {
+	const DONE = "---\nstatus: done\n---\n\n# Done spec\n\n## Tasks\n\n- [x] 1. Done thing\n";
+	const ACTIVE = "---\nstatus: in-progress\n---\n\n# Active spec\n\n## Tasks\n\n- [ ] 1. Open thing\n";
+
+	test("hidden while every speclet is done, visible as soon as one is not", async () => {
+		await mkdir(specDir, { recursive: true });
+		await writeSpec("a.md", DONE);
+		const { controller } = makeController();
+		await controller.scan();
+		expect(controller.panelVisible()).toBe(false);
+
+		await writeSpec("b.md", ACTIVE);
+		await controller.scan();
+		expect(controller.panelVisible()).toBe(true);
+
+		await writeSpec("b.md", DONE); // back to all done
+		await controller.scan();
+		expect(controller.panelVisible()).toBe(false);
+	});
+
+	test("no speclet at all keeps it hidden", async () => {
+		const { controller } = makeController();
+		await controller.scan();
+		expect(controller.panelVisible()).toBe(false);
+	});
+
+	test("an explicit reveal overrides the auto-hide; hiding reverses it", async () => {
+		await mkdir(specDir, { recursive: true });
+		await writeSpec("a.md", DONE);
+		const { controller } = makeController();
+		await controller.scan();
+		expect(controller.panelVisible()).toBe(false);
+
+		controller.reveal();
+		expect(controller.panelVisible()).toBe(true);
+
+		controller.hide();
+		expect(controller.panelVisible()).toBe(false);
+		expect(controller.revealed).toBe(false);
+	});
+
+	test("show() (internal restore, e.g. after the inspector) does not override the auto-hide", async () => {
+		await mkdir(specDir, { recursive: true });
+		await writeSpec("a.md", DONE);
+		const { controller } = makeController();
+		await controller.scan();
+		controller.show();
+		expect(controller.panelVisible()).toBe(false);
+	});
+
+	test("revealing a done set fires an update so the widget is re-registered", async () => {
+		await mkdir(specDir, { recursive: true });
+		await writeSpec("a.md", DONE);
+		const { controller, updates } = makeController();
+		await controller.scan();
+		const before = updates.length;
+		controller.reveal();
+		expect(updates.length).toBe(before + 1);
+	});
+
+	test("a pinned done speclet is not visible until revealed", async () => {
+		await mkdir(specDir, { recursive: true });
+		await writeSpec("a.md", DONE);
+		const { controller } = makeController();
+		await controller.scan();
+		controller.pin("a.md");
+		expect(controller.active()?.filename).toBe("a.md");
+		expect(controller.panelVisible()).toBe(false);
+	});
+
+	test("stop() clears the explicit reveal", async () => {
+		await mkdir(specDir, { recursive: true });
+		await writeSpec("a.md", DONE);
+		const { controller } = makeController();
+		await controller.scan();
+		controller.reveal();
+		controller.stop();
+		expect(controller.revealed).toBe(false);
+		expect(controller.panelVisible()).toBe(false);
+	});
+
+	test("an unreadable speclet keeps the panel visible rather than hiding the problem", async () => {
+		await mkdir(specDir, { recursive: true });
+		await writeSpec("a.md", DONE);
+		await writeSpec("b.md", "---\nstatus: done\n---\n\n# B\n");
+		await chmod(join(specDir, "b.md"), 0o000);
+		const { controller } = makeController();
+		await controller.scan();
+		expect(controller.files.some((f) => f.error)).toBe(true);
+		expect(controller.panelVisible()).toBe(true);
+	});
 });

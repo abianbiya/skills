@@ -51,4 +51,6 @@ Live verification in scratch project `/tmp/speclet-pkg-e2e` (host pi 0.85.1, `pi
 - **AC4** — 87 tests pass (same count as speclet-tui baseline).
 - **AC5** — manifest declares `pi` resources + `*`-range optional peer deps + `pi-package` keyword; install from local path succeeded cleanly.
 
+**Release status (updated 2026-09-14).** Published to npm: `0.1.0` on 2026-09-09, and `0.1.1` on 2026-09-14 alongside `@abianbiya/specflow@0.1.1`. Prerequisites listed above are done; both manifests now also carry `author`, `repository` (with `directory`), `homepage`, and `bugs` so catalog/repo links resolve. Git-channel installs are still single-package-only: the repo root is not a package, so a one-URL `pi install git:…/skills` needs the staged root `package.json` manifest committed and pushed.
+
 Notes: (1) On this machine pi reports a benign `speclet` skill-name collision — the user's global skill wins and the package's bundled copy is skipped; other users without a global speclet get the bundled one. (2) Publishing prerequisites remain: `npm adduser` login, then `npm publish --access public`; gallery listing is automatic via the `pi-package` keyword. (3) Follow-ups from ponytail skips: dedicated git repo if git-channel installs are wanted, CI, gallery media.

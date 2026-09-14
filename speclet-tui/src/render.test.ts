@@ -1,5 +1,5 @@
 import { describe, test, expect } from "bun:test";
-import { selectActive, renderWidgetLines, renderDetailsLines, renderScrollbar, wrapText, listText, pickerOptions, plainStyler, type Truncate } from "./render.js";
+import { selectActive, allSpecletsDone, renderWidgetLines, renderDetailsLines, renderScrollbar, wrapText, listText, pickerOptions, plainStyler, type Truncate } from "./render.js";
 import type { SpecletFile } from "./speclet.js";
 
 /** Reference truncation: display-width aware slice (CJK wide = 2 columns), ANSI-escape transparent like pi-tui's truncateToWidth. */
@@ -355,5 +355,25 @@ describe("pickerOptions", () => {
 		const choice = options.map((o) => o.label)[0]; // what ctx.ui.select returns
 		const picked = options.find((o) => o.label === choice);
 		expect(picked?.filename).toBe("a · b.md");
+	});
+});
+
+describe("allSpecletsDone", () => {
+	test("true only when there is at least one speclet and every one is done", () => {
+		expect(allSpecletsDone([file({ status: "done" }), file({ status: "done" })])).toBe(true);
+		expect(allSpecletsDone([file({ status: "done" }), file({ status: "in-progress" })])).toBe(false);
+		expect(allSpecletsDone([file({ status: "draft" })])).toBe(false);
+	});
+
+	test("an empty list is not 'all done' — that is the no-speclets case", () => {
+		expect(allSpecletsDone([])).toBe(false);
+	});
+
+	test("done beats task count and unknown keeps the panel visible", () => {
+		// status is authoritative: done with unchecked tasks is still done
+		expect(allSpecletsDone([file({ status: "done", tasks: [{ id: "1", title: "t", done: false }] })])).toBe(true);
+		// an unreadable/legacy speclet must not silently hide the panel
+		expect(allSpecletsDone([file({ status: "done" }), file({ status: "unknown" })])).toBe(false);
+		expect(allSpecletsDone([file({ status: "done", error: "EACCES" })])).toBe(true);
 	});
 });

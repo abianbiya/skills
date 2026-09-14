@@ -29,7 +29,7 @@ pi install -l /absolute/path/to/speclet-pi
 
 - Ask for a small feature and the agent drafts a speclet in `.speclet/{feature-name}.md`; approve it to start execution.
 - `/speclet` — list speclets and pick which one the panel shows.
-- Live panel — always-visible checklist (`✓`/`○` tasks, status, progress) that updates within ~0.5 s of file edits.
+- Live panel — always-visible checklist (`✓`/`○` tasks, status, progress) that updates within ~0.5 s of file edits. It hides itself once **every** speclet is `status: done` (nothing left to act on); pick a speclet from `/speclet` or choose **Show panel** to bring it back, and it reappears on its own when any speclet is reopened or added.
 - `shift+up` — task inspector: navigate tasks, press enter to see a task's description and acceptance criteria.
 - View details (in the `/speclet` picker) — read the spec's Requirements and Design Notes in a popup.
 

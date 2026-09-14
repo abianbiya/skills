@@ -11,8 +11,11 @@
  *   Fenced examples and indented detail rows are ignored.
  */
 
+import { stripControlSequences } from "./shared.js";
 import { readdir, readFile, lstat } from "node:fs/promises";
 import { join } from "node:path";
+
+export { stripControlSequences };
 
 export type SpecletStatus = "draft" | "approved" | "in-progress" | "done" | "unknown";
 
@@ -42,16 +45,6 @@ export interface DiscoveryResult {
 }
 
 const VALID_STATUSES = ["draft", "approved", "in-progress", "done"] as const;
-
-/** Remove ANSI escape sequences and other control characters. */
-export function stripControlSequences(text: string): string {
-	return text
-		// CSI sequences (incl. SGR), OSC sequences, and two-char C1 escapes
-		.replace(/\x1b(?:\[[0-9;:?]*[ -/]*[@-~]|\][^\x07\x1b]*(?:\x07|\x1b\\)|[@-Z\\-_])/g, "")
-		// remaining C0 controls except tab (collapsed below), plus DEL
-		.replace(/[\x00-\x08\x0b-\x1f\x7f]/g, "")
-		.replace(/\t/g, " ");
-}
 
 /**
  * Fence state machine: returns the active fence marker (first char repeated
