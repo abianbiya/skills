@@ -1,6 +1,6 @@
 {
 	"name": "@abianbiya/llm-audit",
-	"version": "0.8.3",
+	"version": "0.8.4",
 	"description": "See what pi actually sends and where it comes from: per-source attribution of the system prompt (AGENTS.md, skills, memory), per-tool schema cost, real token usage \u2014 one /llm-audit command with a settings panel and a clickable HTML report (pi extension).",
 	"keywords": [
 		"pi-package",
