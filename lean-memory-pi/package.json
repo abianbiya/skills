@@ -1,0 +1,41 @@
+{
+  "name": "@abianbiya/lean-memory",
+  "version": "0.2.0",
+  "description": "Project-isolated memory for Pi: explicit global facts, per-worktree notes and tasks, scoped keyword search, and stable context snapshots. Uses Jay Zeng's pi-memory helpers.",
+  "type": "module",
+  "main": "index.ts",
+  "keywords": ["pi-package", "pi", "memory", "context", "project"],
+  "author": "Abi Anbiya",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/abianbiya/skills.git",
+    "directory": "lean-memory-pi"
+  },
+  "homepage": "https://github.com/abianbiya/skills/tree/main/lean-memory-pi#readme",
+  "bugs": { "url": "https://github.com/abianbiya/skills/issues" },
+  "files": ["index.ts", "store.ts", "preview.ts", "README.md", "LICENSE", "THIRD_PARTY_NOTICES.md"],
+  "pi": { "extensions": ["./index.ts"] },
+  "dependencies": { "pi-memory": "0.4.2" },
+  "bundledDependencies": ["pi-memory"],
+  "peerDependencies": {
+    "@earendil-works/pi-coding-agent": ">=0.85.1",
+    "@earendil-works/pi-ai": ">=0.85.1"
+  },
+  "peerDependenciesMeta": {
+    "@earendil-works/pi-coding-agent": { "optional": true },
+    "@earendil-works/pi-ai": { "optional": true }
+  },
+  "devDependencies": {
+    "@earendil-works/pi-coding-agent": "0.85.1",
+    "@types/node": "^24.0.0",
+    "jiti": "^2.7.0",
+    "typescript": "^5.9.3"
+  },
+  "scripts": {
+    "test": "node --conditions=import -e \"require('jiti').createJiti(process.cwd()+'/index.ts').import('./test/integration.test.ts').catch(error => { console.error(error); process.exitCode = 1; })\"",
+    "typecheck": "tsc --noEmit",
+    "prepublishOnly": "npm run typecheck && npm test"
+  },
+  "engines": { "node": ">=22.19.0" }
+}

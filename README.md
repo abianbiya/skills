@@ -44,6 +44,16 @@ pi install npm:@abianbiya/speclet
 
 ---
 
+## Standalone Pi Extensions
+
+### [Lean Memory](./lean-memory-pi/)
+
+Project-isolated memory with an explicit global layer, per-worktree facts/tasks/logs, scoped keyword search, and stable context snapshots. Reuses and credits the scratchpad/deletion helpers from **[pi-memory by Jay Zeng](https://github.com/jayzeng/pi-memory)**, preserving the upstream MIT license. Unrelated projects and legacy mixed archives are excluded from injection and search.
+
+This is a separate Pi package (`pi install npm:@abianbiya/lean-memory`), not a skill and not automatically loaded by the collection's root manifest. See its [installation and duplicate-loading instructions](./lean-memory-pi/README.md).
+
+---
+
 ## Coming Soon
 
 | Skill | Description |
