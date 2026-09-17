@@ -15,11 +15,12 @@
 
 import { join } from "node:path";
 import { lstat, readFile } from "node:fs/promises";
-import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { matchesKey, Markdown, truncateToWidth, type MarkdownTheme } from "@earendil-works/pi-tui";
 import { SpecflowController } from "../src/controller.js";
+import { createMarkdownBody } from "../src/markdown.js";
 import { discoverSpecflows, type SpecflowSpec } from "../src/parse.js";
-import { renderScrollbar, stripControlSequences } from "../src/shared.js";
+import { renderScrollbar, stripControlSequences, wrapText } from "../src/shared.js";
 import {
 	actionOptions,
 	documentOptions,
@@ -56,6 +57,10 @@ function makeStyler(theme: any): Styler {
 	const colors = popupColors();
 	return (text, kind) => theme.fg(colors[kind], text);
 }
+
+// Set once when the host theme turned out to be incompatible, so a degraded render
+// reports itself a single time instead of on every frame.
+let unstyledWarned = false;
 
 function markdownThemeFrom(theme: any): MarkdownTheme {
 	return {
@@ -118,8 +123,12 @@ async function openDocumentPopup(
 		(tui: any, theme: any, _keybindings: unknown, close: () => void) => {
 			let offset = 0;
 			const styler = makeStyler(theme);
-			const mdTheme = markdownThemeFrom(theme);
-			let md: Markdown | undefined;
+			const notify = popupCtx.ui.notify;
+			const body = createMarkdownBody(
+				content,
+				() => new Markdown(content, 0, 0, markdownThemeFrom(theme)),
+				wrapText,
+			);
 			let mdBodyLines: string[] = [];
 			let mdWidth = -1;
 			const height = () => Math.max(8, Math.floor(tui.terminal.rows * 0.7));
@@ -127,11 +136,17 @@ async function openDocumentPopup(
 				render(width: number): string[] {
 					// true inner width: border(4) + indent(2) + scrollbar column(2)
 					const contentWidth = Math.max(10, width - 8);
-					if (!md || mdWidth !== contentWidth) {
-						md = new Markdown(content, 0, 0, mdTheme);
+					if (mdWidth !== contentWidth) {
+						mdBodyLines = body.lines(contentWidth);
 						mdWidth = contentWidth;
-						mdBodyLines = md.render(contentWidth);
 						offset = Math.max(0, Math.min(offset, Math.max(0, mdBodyLines.length - 1)));
+						if (body.failed() && !unstyledWarned) {
+							unstyledWarned = true;
+							notify(
+								"specflow: host markdown renderer is incompatible with this theme; showing plain text",
+								"warning",
+							);
+						}
 					}
 					const h = height();
 					const visibleRows = Math.max(1, h - 3);
@@ -170,7 +185,7 @@ async function openDocumentPopup(
 					tui.requestRender();
 				},
 				invalidate(): void {
-					md = undefined;
+					mdWidth = -1; // force a fresh render on the next frame
 				},
 			};
 		},
@@ -235,7 +250,7 @@ export default function specflowTui(pi: ExtensionAPI) {
 	// Re-register the widget from current controller state. setWidget with a
 	// factory triggers a repaint; the component re-reads state on each render so
 	// resize always reflows. No specflow widget when the panel has no content.
-	function repaint(ctx: { ui: { setWidget: (key: string, content: unknown) => void } }) {
+	function repaint(ctx: ExtensionContext) {
 		if (!controller) return;
 		const spec = controller.active();
 		if (!spec || controller.hidden) {
@@ -247,7 +262,23 @@ export default function specflowTui(pi: ExtensionAPI) {
 			render(width: number): string[] {
 				const current = controller?.active();
 				if (!current) return [];
-				return renderWidgetLines(current, width, MAX_LINES, truncateToWidth, makeStyler(theme));
+				// A theme-shape difference in the host must not escape into the host
+				// render loop, which reports an uncaught exception.
+				try {
+					return renderWidgetLines(current, width, MAX_LINES, truncateToWidth, makeStyler(theme));
+				} catch (e) {
+					if (!unstyledWarned) {
+						unstyledWarned = true;
+						ctx.ui.notify(
+							`specflow: host theme is incompatible (${String(e)}); showing the panel unstyled`,
+							"warning",
+						);
+					}
+					return renderWidgetLines(current, width, MAX_LINES, truncateToWidth, (text) => text);
+				}
+			},
+			invalidate(): void {
+				// Nothing is cached between frames: every render re-reads the controller.
 			},
 		}));
 	}
