@@ -1,0 +1,50 @@
+{
+	"name": "@abianbiya/llm-audit",
+	"version": "0.8.3",
+	"description": "See what pi actually sends and where it comes from: per-source attribution of the system prompt (AGENTS.md, skills, memory), per-tool schema cost, real token usage \u2014 one /llm-audit command with a settings panel and a clickable HTML report (pi extension).",
+	"keywords": [
+		"pi-package",
+		"llm",
+		"audit",
+		"observability",
+		"context",
+		"tokens",
+		"cost",
+		"agent"
+	],
+	"license": "MIT",
+	"author": "Abi Anbiya",
+	"repository": {
+		"type": "git",
+		"url": "git+https://github.com/abianbiya/skills.git",
+		"directory": "llm-audit-pi"
+	},
+	"homepage": "https://github.com/abianbiya/skills/tree/main/llm-audit-pi#readme",
+	"bugs": {
+		"url": "https://github.com/abianbiya/skills/issues"
+	},
+	"type": "module",
+	"files": [
+		"llm-audit",
+		"!llm-audit/tsconfig.json",
+		"README.md",
+		"LICENSE"
+	],
+	"scripts": {
+		"test": "bun run llm-audit/tests/run.ts",
+		"prepublishOnly": "bun run scripts/sync-audit.ts --check && bun run scripts/check-fork.ts"
+	},
+	"pi": {
+		"extensions": [
+			"./llm-audit"
+		]
+	},
+	"peerDependencies": {
+		"@earendil-works/pi-coding-agent": "*"
+	},
+	"peerDependenciesMeta": {
+		"@earendil-works/pi-coding-agent": {
+			"optional": true
+		}
+	}
+}
