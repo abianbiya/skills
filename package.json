@@ -2,10 +2,17 @@
 	"name": "abianbiya-skills",
 	"version": "1.0.0",
 	"private": true,
-	"description": "Pi skills collection: specflow (multi-phase specs with review gates) and speclet (single-file specs), each with their TUI extensions.",
+	"description": "Pi skills collection: specflow (multi-phase specs with review gates), speclet (single-file specs) and llm-audit (what the model actually sends, by source), each with their TUI extensions.",
 	"license": "MIT",
 	"pi": {
-		"extensions": ["speclet-pi/extensions", "specflow-pi/extensions"],
-		"skills": ["speclet-pi/skills", "specflow-pi/skills"]
+		"extensions": [
+			"speclet-pi/extensions",
+			"specflow-pi/extensions",
+			"llm-audit-pi/llm-audit"
+		],
+		"skills": [
+			"speclet-pi/skills",
+			"specflow-pi/skills"
+		]
 	}
 }
