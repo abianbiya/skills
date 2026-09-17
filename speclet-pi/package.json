@@ -1,6 +1,6 @@
 {
 	"name": "@abianbiya/speclet",
-	"version": "0.1.2",
+	"version": "0.2.1",
 	"description": "Spec-driven development for pi: single-file specs with one approval gate (skill), plus a live speclet checklist panel, /speclet picker, details popup, and task inspector (TUI extension).",
 	"keywords": [
 		"pi-package",

@@ -8,9 +8,16 @@
 
 import { join } from "node:path";
 import { readFile } from "node:fs/promises";
-import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
-import { matchesKey, Markdown, truncateToWidth, type MarkdownTheme } from "@earendil-works/pi-tui";
+import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
+import { matchesKey, Markdown, truncateToWidth, type KeyId, type MarkdownTheme } from "@earendil-works/pi-tui";
 import { SpecletController } from "../src/controller.js";
+import { createMarkdownBody } from "../src/markdown.js";
+import {
+	loadSpecletConfig,
+	parseShortcutInput,
+	saveShortcut,
+	specletConfigPath,
+} from "../src/config.js";
 import {
 	parseSections,
 	criteriaIds,
@@ -33,6 +40,10 @@ import {
 const WIDGET_KEY = "speclet-tui";
 const MAX_LINES = 12;
 const DETAILS_LABEL = "View details";
+
+// Set once when the host theme turned out to be incompatible, so a degraded render
+// reports itself a single time instead of on every frame.
+let unstyledWarned = false;
 const INDENT = "  ";
 
 function popupColors() {
@@ -79,6 +90,60 @@ function taskGlyph(task: SpecletTask, styler: Styler): string {
 	return styler(task.done ? "●" : "○", task.done ? "doneGlyph" : "openGlyph");
 }
 
+/**
+ * `/speclet shortcut [key]` — the only writable setting this extension has.
+ *
+ * A shortcut is bound at load time and cannot be re-bound in place, so a change
+ * here always ends with "run /reload": saying that is better than leaving the user
+ * to wonder why the new key does nothing.
+ */
+async function editShortcut(
+	value: string,
+	ctx: PopupCtx & {
+		hasUI?: boolean;
+		mode?: string;
+		ui: { input: (title: string, placeholder?: string) => Promise<string | undefined> };
+	},
+): Promise<void> {
+	const path = specletConfigPath();
+	const current = loadSpecletConfig(path).config.shortcut;
+	const shown = current === "" ? "none" : current;
+	// Same convention as the rest of this file: text modes have no dialog layer.
+	const say = (message: string, type: "info" | "warning" | "error" = "info") => {
+		if (ctx.hasUI) ctx.ui.notify(message, type);
+		else console.log(stripControlSequences(message));
+	};
+
+	let answer = value;
+	if (answer === "") {
+		const summary = `Inspector shortcut: ${shown}\nConfig: ${path}\nSet it with /speclet shortcut <key> (e.g. shift+up, ctrl+alt+i, none).`;
+		if (ctx.mode !== "tui") {
+			say(summary);
+			return;
+		}
+		const typed = await ctx.ui.input(
+			'Inspector shortcut (e.g. shift+up, ctrl+alt+i) — "none" removes it',
+			shown,
+		);
+		if (typed === undefined) return;
+		answer = typed;
+	}
+
+	const parsed = parseShortcutInput(answer);
+	if ("error" in parsed) {
+		say(parsed.error, "warning");
+		return;
+	}
+	const result = await saveShortcut(parsed.shortcut, path);
+	if (result.error) {
+		say(`speclet-tui: ${result.error}`, "error");
+		return;
+	}
+	say(
+		`Inspector shortcut: ${parsed.shortcut === "" ? "none" : parsed.shortcut} → ${result.path}\nRun /reload to apply it.`,
+	);
+}
+
 interface PopupCtx {
 	ui: {
 		custom: (factory: unknown, options?: unknown) => Promise<void>;
@@ -110,8 +175,12 @@ async function openDetailsPopup(popupCtx: PopupCtx, spec: SpecletFile): Promise<
 		(tui: any, theme: any, _keybindings: unknown, close: () => void) => {
 			let offset = 0;
 			const styler = makeStyler(theme);
-			const mdTheme = markdownThemeFrom(theme);
-			let md: Markdown | undefined;
+			const notify = popupCtx.ui.notify;
+			const body = createMarkdownBody(
+				bodyText,
+				() => new Markdown(bodyText, 0, 0, markdownThemeFrom(theme)),
+				wrapText,
+			);
 			let mdBodyLines: string[] = [];
 			let mdWidth = -1;
 			const height = () => Math.max(8, Math.floor(tui.terminal.rows * 0.7));
@@ -119,11 +188,19 @@ async function openDetailsPopup(popupCtx: PopupCtx, spec: SpecletFile): Promise<
 				render(width: number): string[] {
 					// true inner width: border(4) + indent(2) + scrollbar column(2)
 					const contentWidth = Math.max(10, width - 8);
-					if (!md || mdWidth !== contentWidth) {
-						md = new Markdown(bodyText, 0, 0, mdTheme);
+					if (mdWidth !== contentWidth) {
+						mdBodyLines = body.lines(contentWidth);
 						mdWidth = contentWidth;
-						mdBodyLines = md.render(contentWidth);
 						offset = Math.max(0, Math.min(offset, Math.max(0, mdBodyLines.length - 1)));
+						// Tell the user once if the host's markdown refused to render, so
+						// "the popup lost its formatting" is explainable rather than a riddle.
+						if (body.failed() && !unstyledWarned) {
+							unstyledWarned = true;
+							notify(
+								"speclet-tui: host markdown renderer is incompatible with this theme; showing plain text",
+								"warning",
+							);
+						}
 					}
 					const h = height();
 					const visibleRows = Math.max(1, h - 3);
@@ -162,7 +239,7 @@ async function openDetailsPopup(popupCtx: PopupCtx, spec: SpecletFile): Promise<
 					tui.requestRender();
 				},
 				invalidate(): void {
-					md = undefined;
+					mdWidth = -1; // force a fresh render on the next frame
 				},
 			};
 		},
@@ -286,7 +363,7 @@ export default function specletTui(pi: ExtensionAPI) {
 	// Re-register the widget from current controller state. setWidget with a
 	// factory triggers a repaint; the component re-reads state on each render so
 	// resize always reflows.
-	function repaint(ctx: { ui: { setWidget: (key: string, content: unknown) => void } }) {
+	function repaint(ctx: ExtensionContext) {
 		if (!controller) return;
 		const spec = controller.active();
 		if (!spec || !controller.panelVisible()) {
@@ -297,7 +374,29 @@ export default function specletTui(pi: ExtensionAPI) {
 			render(width: number): string[] {
 				const current = controller?.active();
 				if (!current) return [];
-				return renderWidgetLines(current, width, MAX_LINES, truncateToWidth, makeStyler(theme));
+				// A theme-shape difference in the host (see src/markdown.ts) must not
+				// escape into the host render loop, which reports an uncaught exception.
+				try {
+					return renderWidgetLines(current, width, MAX_LINES, truncateToWidth, makeStyler(theme));
+				} catch (e) {
+					if (!unstyledWarned) {
+						unstyledWarned = true;
+						ctx.ui.notify(
+							`speclet-tui: host theme is incompatible (${String(e)}); showing the panel unstyled`,
+							"warning",
+						);
+					}
+					return renderWidgetLines(
+						current,
+						width,
+						MAX_LINES,
+						truncateToWidth,
+						(text) => text,
+					);
+				}
+			},
+			invalidate(): void {
+				// Nothing is cached between frames: every render re-reads the controller.
 			},
 		}));
 	}
@@ -318,8 +417,11 @@ export default function specletTui(pi: ExtensionAPI) {
 	// Task inspector shortcut (AC1); fall back if the host rejects the binding.
 	// Registered in the factory body: registering inside session_start throws
 	// "stale extension ctx" when pi rebinds extensions mid-startup (trust flow).
-	const inspectorShortcut = (shortcutKey: "shift+up" | "alt+up") => {
-		pi.registerShortcut(shortcutKey, {
+	// The key comes from `<agent dir>/speclet.json`, because pi's own
+	// keybindings.json only remaps pi's built-in actions, not extension ones.
+	const loadedShortcut = loadSpecletConfig();
+	const inspectorShortcut = (shortcutKey: string) => {
+		pi.registerShortcut(shortcutKey as KeyId, {
 			description: "Open the speclet task inspector",
 			handler: async (shortcutCtx) => {
 				if (shortcutCtx.mode !== "tui" || !controller) return;
@@ -340,15 +442,30 @@ export default function specletTui(pi: ExtensionAPI) {
 			},
 		});
 	};
-	try {
-		inspectorShortcut("shift+up");
-	} catch (e) {
+	const warn = (message: string) => {
+		pi.on("session_start", (_event, ctx) => {
+			ctx.ui.notify(`speclet-tui: ${message}`, "warning");
+		});
+	};
+	if (loadedShortcut.config.shortcut === "") {
+		if (loadedShortcut.error) warn(loadedShortcut.error);
+	} else {
 		try {
-			inspectorShortcut("alt+up");
-		} catch {
-			pi.on("session_start", (_event, ctx) => {
-				ctx.ui.notify(`speclet-tui: could not register inspector shortcut: ${String(e)}`, "warning");
-			});
+			inspectorShortcut(loadedShortcut.config.shortcut);
+		} catch (error) {
+			// A configured key is the user's choice, so it is never swapped for
+			// another one; only an unconfigured default still has a fallback.
+			if (loadedShortcut.explicit) {
+				warn(
+					`could not register shortcut "${loadedShortcut.config.shortcut}" (${String(error)}). Edit ${loadedShortcut.path} or run /speclet shortcut <key>.`,
+				);
+			} else {
+				try {
+					inspectorShortcut("alt+up");
+				} catch {
+					warn(`could not register inspector shortcut: ${String(error)}`);
+				}
+			}
 		}
 	}
 
@@ -359,9 +476,15 @@ export default function specletTui(pi: ExtensionAPI) {
 	});
 
 	pi.registerCommand("speclet", {
-		description: "List speclets and choose which one the panel shows",
-		handler: async (_args, ctx) => {
+		description:
+			"List speclets and choose which one the panel shows; /speclet shortcut [key] sets the inspector key",
+		handler: async (args, ctx) => {
 			const dir = join(ctx.cwd, ".speclet");
+
+			if (args.trim().split(/\s+/)[0] === "shortcut") {
+				await editShortcut(args.trim().slice("shortcut".length).trim(), ctx);
+				return;
+			}
 
 			// Non-interactive modes: textual list, never a dialog (AC3, AC8).
 			if (ctx.mode !== "tui" || !controller) {
