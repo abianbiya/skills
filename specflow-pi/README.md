@@ -28,12 +28,12 @@ pi install -l /absolute/path/to/specflow-pi
 ## Usage
 
 - Ask for a feature and the agent drafts requirements, then design, then tasks — each stopping for your approval (the panel shows `awaiting your review` at every stop).
-- Live panel — the selected spec's name, phase (Requirements / Design / Tasks / Executing), done/total task count, status, and gate badge, updating within ~0.5 s of file edits.
+- Live panel — the selected spec's name, phase (Requirements / Design / Tasks / Executing), done/total task count, status, and gate badge, updating within ~0.5 s of file edits. Specs that are `completed` or `archived` are retired: the panel stops following them and the `/specflow` list stops showing them, in this session and in every later one. Archives stay where they are — specflow never moves directories.
 - `/specflow` — act on the active spec without leaving the terminal:
   - **Execute a task…** — pick from the unfinished tasks (`▶` ready, `⏸` blocked, with what they wait on); the chosen task is sent to the agent as `Execute task 2.1 of the rate-limit spec.`
   - **Approve gate and resume** — appears only while a review gate is pending
   - **Validate implementation** / **Open document…** — `requirements.md`, `design.md`, `tasks.md`, or `project.md` in a scrollable popup
-  - **Hide/Show panel**, and the spec list to switch which spec the panel follows
+  - **Hide/Show panel**, **Show/Hide finished**, and the spec list to switch which spec the panel follows (**Show finished** also lists `completed` and `archived` specs so you can read one again)
 - Panel rows, beyond the phase: `Next: 2.1 Wire the Fastify hook` (first task whose dependencies are done), and one warning row when traceability is incomplete — `⚠ 1 unclaimed AC · 1 orphan criterion · 1 dangling dep`, i.e. requirements no task implements, citations of ACs that don't exist, and `Depends on:` ids that don't resolve.
 - `resume` / `complete` / `archive` — lifecycle routes from the skill; the panel reflects the reconciled state.
 

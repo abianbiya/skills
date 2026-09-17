@@ -5,7 +5,7 @@
  */
 
 import { discoverSpeclets, type SpecletFile } from "./speclet.js";
-import { allSpecletsDone, selectActive } from "./render.js";
+import { allSpecletsFinished, isFinished, selectActive, visibleFiles } from "./render.js";
 
 export interface ControllerHooks {
 	/** The rendered content of the active speclet changed (or appeared/disappeared). */
@@ -22,10 +22,16 @@ export class SpecletController {
 	hidden = false;
 	/**
 	 * The user explicitly asked for the panel (picked a speclet, or "Show panel").
-	 * This is what overrides the all-done auto-hide, so an explicit choice always
-	 * wins over the automatic rule. Cleared by hide() and stop().
+	 * This is what overrides the all-finished auto-hide, so an explicit choice
+	 * always wins over the automatic rule. Cleared by hide() and stop().
 	 */
 	revealed = false;
+	/**
+	 * Picker's "Show finished" toggle: also lists retired speclets, including the
+	 * archived ones in `.speclet/archive`, and reveals them in the panel. Session
+	 * scope only — cleared by stop(), never persisted.
+	 */
+	showFinished = false;
 
 	private timer: ReturnType<typeof setTimeout> | undefined;
 	private generation = 0;
@@ -41,7 +47,12 @@ export class SpecletController {
 	) {}
 
 	active(): SpecletFile | undefined {
-		return selectActive(this.files, this.pinned);
+		return selectActive(this.candidates(), this.pinned);
+	}
+
+	/** Specs the panel may show: without the toggle, retired ones are excluded. */
+	private candidates(): SpecletFile[] {
+		return visibleFiles(this.files, this.showFinished);
 	}
 
 	pin(filename: string | undefined): void {
@@ -61,7 +72,7 @@ export class SpecletController {
 	}
 
 	/** Explicit user intent (picker "Show panel" / picking a speclet): also
-	 * overrides the all-done auto-hide until the panel is hidden again. */
+	 * overrides the all-finished auto-hide until the panel is hidden again. */
 	reveal(): void {
 		this.hidden = false;
 		this.revealed = true;
@@ -69,20 +80,35 @@ export class SpecletController {
 	}
 
 	/**
+	 * Picker "Show finished": retired specs become listable and selectable again.
+	 * Turning it off drops a pin that points at a retired spec — the pin cannot
+	 * outlive the view that made it selectable. Archived specs arrive on the next
+	 * scan(), which reads `.speclet/archive` while this flag is on.
+	 */
+	setShowFinished(on: boolean): void {
+		this.showFinished = on;
+		if (!on && this.pinned !== undefined) {
+			const pinned = this.files.find((f) => f.filename === this.pinned);
+			if (pinned && isFinished(pinned)) this.pinned = undefined;
+		}
+		this.refreshSnapshot();
+	}
+
+	/**
 	 * Whether the panel should render right now: there is a speclet to show, the
-	 * user has not hidden it, and — once every speclet is finished — only if the
-	 * user asked for it explicitly.
+	 * user has not hidden it, and — once every speclet is retired — only if the
+	 * user asked for it explicitly ("Show panel" or "Show finished").
 	 */
 	panelVisible(): boolean {
 		if (this.hidden) return false;
 		if (!this.active()) return false;
-		return this.revealed || !allSpecletsDone(this.files);
+		return this.revealed || this.showFinished || !allSpecletsFinished(this.files);
 	}
 
 	/** Scan once now; safe to call directly (used by tests and start()). */
 	async scan(): Promise<void> {
 		const gen = this.generation;
-		const { files, dirError } = await discoverSpeclets(this.dir);
+		const { files, dirError } = await discoverSpeclets(this.dir, { includeArchive: this.showFinished });
 		if (gen !== this.generation) return; // stale scan after shutdown
 
 		if (this.pinned !== undefined && !files.some((f) => f.filename === this.pinned)) {
@@ -112,6 +138,7 @@ export class SpecletController {
 		this.pinned = undefined;
 		this.hidden = false;
 		this.revealed = false;
+		this.showFinished = false;
 	}
 
 	private async loop(): Promise<void> {
@@ -128,13 +155,14 @@ export class SpecletController {
 			? JSON.stringify([
 					this.hidden,
 					this.revealed,
+					this.showFinished,
 					active.filename,
 					active.name,
 					active.status,
 					active.tasks,
 					active.error ?? null,
 				])
-			: JSON.stringify([this.hidden, this.revealed]);
+			: JSON.stringify([this.hidden, this.revealed, this.showFinished]);
 		if (signature !== this.lastSignature) {
 			this.lastSignature = signature;
 			this.hooks.onUpdate();

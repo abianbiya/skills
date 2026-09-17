@@ -55,6 +55,7 @@ describe("parseFrontmatterStatus", () => {
 	test("valid scalar values", () => {
 		expect(parseFrontmatterStatus(fm("status: draft"))).toBe("draft");
 		expect(parseFrontmatterStatus(fm("status: in-progress"))).toBe("in-progress");
+		expect(parseFrontmatterStatus(fm("status: archived"))).toBe("archived");
 	});
 	test("quoted values", () => {
 		expect(parseFrontmatterStatus(fm('status: "done"'))).toBe("done");
@@ -275,6 +276,29 @@ describe("discoverSpeclets", () => {
 		const r = await discoverSpeclets(dir);
 		const names = r.files.map((f) => f.filename).sort();
 		expect(names).toEqual(["a.md", "target.md"]);
+	});
+
+	test("archived speclets are listed only with includeArchive", async () => {
+		await writeFile(join(dir, "a.md"), "---\nstatus: archived\n---\n\n# Old A\n");
+		await mkdir(join(dir, "archive"));
+		await writeFile(join(dir, "archive", "old.md"), "---\nstatus: archived\n---\n\n# Old B\n");
+		await writeFile(join(dir, "archive", "context.md"), "# Context\n");
+		await writeFile(join(dir, "archive", "note.txt"), "nope");
+
+		const plain = await discoverSpeclets(dir);
+		expect(plain.files.map((f) => f.filename)).toEqual(["a.md"]);
+
+		const withArchive = await discoverSpeclets(dir, { includeArchive: true });
+		expect(withArchive.files.map((f) => f.filename).sort()).toEqual(["a.md", "old.md"]);
+		expect(withArchive.dirError).toBeUndefined();
+		expect(withArchive.files.find((f) => f.filename === "old.md")?.status).toBe("archived");
+	});
+
+	test("a missing archive directory is not an error", async () => {
+		await writeFile(join(dir, "a.md"), HEADER);
+		const r = await discoverSpeclets(dir, { includeArchive: true });
+		expect(r.files.map((f) => f.filename)).toEqual(["a.md"]);
+		expect(r.dirError).toBeUndefined();
 	});
 
 	test("file with h2-only content parses with stem name and tasks", async () => {

@@ -6,7 +6,7 @@
  */
 
 import { discoverSpecflows, type SpecflowSpec } from "./parse.js";
-import { selectActive } from "./render.js";
+import { isFinished, selectActive, visibleSpecs } from "./render.js";
 
 export interface ControllerHooks {
 	/** The rendered content of the active spec changed (or appeared/disappeared). */
@@ -21,6 +21,11 @@ export class SpecflowController {
 	pinned: string | undefined;
 	/** Panel visibility, toggled from the /specflow picker. Session-scoped. */
 	hidden = false;
+	/**
+	 * Picker's "Show finished" toggle: also lists completed and archived specs and
+	 * lets one be pinned. Session-scoped — cleared by stop(), never persisted.
+	 */
+	showFinished = false;
 
 	private timer: ReturnType<typeof setTimeout> | undefined;
 	private generation = 0;
@@ -34,7 +39,26 @@ export class SpecflowController {
 	) {}
 
 	active(): SpecflowSpec | undefined {
-		return selectActive(this.specs, this.pinned);
+		return selectActive(this.candidates(), this.pinned);
+	}
+
+	/** Specs the panel may show: without the toggle, retired ones are excluded. */
+	private candidates(): SpecflowSpec[] {
+		return visibleSpecs(this.specs, this.showFinished);
+	}
+
+	/**
+	 * Picker "Show finished": completed and archived specs become listable and
+	 * selectable again. Turning it off drops a pin that points at a retired spec —
+	 * the pin cannot outlive the view that made it selectable.
+	 */
+	setShowFinished(on: boolean): void {
+		this.showFinished = on;
+		if (!on && this.pinned !== undefined) {
+			const pinned = this.specs.find((s) => s.dir === this.pinned);
+			if (pinned && isFinished(pinned)) this.pinned = undefined;
+		}
+		this.refreshSnapshot();
 	}
 
 	pin(dir: string | undefined): void {
@@ -84,6 +108,7 @@ export class SpecflowController {
 		this.specs = [];
 		this.pinned = undefined;
 		this.hidden = false;
+		this.showFinished = false;
 	}
 
 	private async loop(): Promise<void> {
@@ -98,6 +123,7 @@ export class SpecflowController {
 		const active = this.active();
 		const signature = JSON.stringify([
 			this.hidden,
+			this.showFinished,
 			active
 				? [
 						active.dir,

@@ -32,7 +32,7 @@ Expert guide for the [Laralag](https://github.com/abianbiya/laralag) Laravel pac
 
 Lightweight spec-driven development for small features — one spec file (`.speclet/{feature}.md`) capturing requirements, EARS-lite acceptance criteria, design notes, and a coding checklist, with a single approval gate before any code is written.
 
-**Workflow:** Draft → Approval → Validated execution → Report
+**Workflow:** Draft → Approval → Validated execution → Report → Done or archived
 
 **Best for:** Small features where a full SpecFlow workflow would be excessive.
 

@@ -33,6 +33,7 @@ import {
 	renderWidgetLines,
 	renderDetailsLines,
 	renderScrollbar,
+	visibleFiles,
 	wrapText,
 	type Styler,
 } from "./src/render.js";
@@ -486,9 +487,10 @@ export default function specletTui(pi: ExtensionAPI) {
 				return;
 			}
 
-			// Non-interactive modes: textual list, never a dialog (AC3, AC8).
+			// Non-interactive modes: textual list, never a dialog (AC3, AC8). This is
+			// the inventory view, so it includes retired speclets, archived ones too.
 			if (ctx.mode !== "tui" || !controller) {
-				const { files, dirError } = await discoverSpeclets(dir);
+				const { files, dirError } = await discoverSpeclets(dir, { includeArchive: true });
 				const text = stripControlSequences(
 					dirError ?? (files.length > 0 ? listText(files) : "No speclets found."),
 				);
@@ -505,12 +507,27 @@ export default function specletTui(pi: ExtensionAPI) {
 				return;
 			}
 
-			const options = pickerOptions(controller.files);
+			// Retired speclets are hidden here; "Show finished" is what brings them
+			// back, so an empty list still gets the toggles below.
+			const options = pickerOptions(visibleFiles(controller.files, controller.showFinished));
 			const toggleLabel = controller.panelVisible() ? "Hide panel" : "Show panel";
-			const choice = await ctx.ui.select("Speclet:", [...options.map((o) => o.label), toggleLabel, DETAILS_LABEL]);
+			const finishedLabel = controller.showFinished ? "Hide finished" : "Show finished";
+			const choice = await ctx.ui.select("Speclet:", [
+				...options.map((o) => o.label),
+				toggleLabel,
+				finishedLabel,
+				DETAILS_LABEL,
+			]);
 			if (choice === undefined) return; // cancelled — keep current selection (AC3)
 			if (choice === toggleLabel) {
 				controller.panelVisible() ? controller.hide() : controller.reveal();
+				return;
+			}
+			if (choice === finishedLabel) {
+				// Archived speclets live in `.speclet/archive`; re-scan under the new
+				// flag so the next picker lists them (or drops them again).
+				controller.setShowFinished(!controller.showFinished);
+				await controller.scan();
 				return;
 			}
 			if (choice === DETAILS_LABEL) {

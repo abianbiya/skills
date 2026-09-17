@@ -4,7 +4,7 @@
  *
  * Grammar handled (see .speclet/speclet-tui.md AC6/AC9):
  * - Name: first level-1 heading outside code fences, else filename stem.
- * - Status: frontmatter scalar `status:` (draft|approved|in-progress|done),
+ * - Status: frontmatter scalar `status:` (draft|approved|in-progress|done|archived),
  *   optionally quoted; anything else is `unknown`.
  * - Tasks: top-level numbered checkbox rows `- [ ]|x|X N. Title` inside the
  *   `## Tasks` section, ending at the next level-1 or level-2 heading.
@@ -17,7 +17,7 @@ import { join } from "node:path";
 
 export { stripControlSequences };
 
-export type SpecletStatus = "draft" | "approved" | "in-progress" | "done" | "unknown";
+export type SpecletStatus = "draft" | "approved" | "in-progress" | "done" | "archived" | "unknown";
 
 export interface SpecletTask {
 	id: string;
@@ -44,7 +44,7 @@ export interface DiscoveryResult {
 	dirError?: string;
 }
 
-const VALID_STATUSES = ["draft", "approved", "in-progress", "done"] as const;
+const VALID_STATUSES = ["draft", "approved", "in-progress", "done", "archived"] as const;
 
 /**
  * Fence state machine: returns the active fence marker (first char repeated
@@ -226,13 +226,13 @@ export function parseSpeclet(path: string, filename: string, content: string, mt
  * (symlinks excluded), `context.md` excluded, no subdirectory recursion. Files
  * that vanish mid-scan are omitted; other read failures become error entries.
  */
-export async function discoverSpeclets(dir: string): Promise<DiscoveryResult> {
+async function readSpecletDir(dir: string): Promise<DiscoveryResult> {
 	let entries: Awaited<ReturnType<typeof readdir>>;
 	try {
 		entries = await readdir(dir, { withFileTypes: true });
 	} catch (e) {
 		if ((e as NodeJS.ErrnoException).code === "ENOENT") return { files: [] };
-		return { files: [], dirError: `cannot read .speclet directory: ${String(e)}` };
+		return { files: [], dirError: `cannot read speclet directory ${dir}: ${String(e)}` };
 	}
 
 	const candidates = entries.filter(
@@ -264,4 +264,28 @@ export async function discoverSpeclets(dir: string): Promise<DiscoveryResult> {
 	);
 
 	return { files: settled.filter((f): f is SpecletFile => f !== undefined) };
+}
+
+export interface DiscoveryOptions {
+	/**
+	 * Also list retired speclets from `{dir}/archive`. Off by default: the 500 ms
+	 * poll must never pick them up, and only the picker's "Show finished" toggle
+	 * asks for them. A missing archive directory is normal.
+	 */
+	includeArchive?: boolean;
+}
+
+/**
+ * Discover speclets in `dir`; with `includeArchive`, also in `dir/archive`.
+ * The main directory's error wins — an unreadable root is reported once, and
+ * there is nothing to merge when the archive itself is unreadable.
+ */
+export async function discoverSpeclets(dir: string, options: DiscoveryOptions = {}): Promise<DiscoveryResult> {
+	const main = await readSpecletDir(dir);
+	if (!options.includeArchive || main.dirError) return main;
+	const archived = await readSpecletDir(join(dir, "archive"));
+	return {
+		files: [...main.files, ...archived.files],
+		dirError: archived.dirError,
+	};
 }

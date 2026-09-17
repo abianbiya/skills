@@ -56,8 +56,14 @@ For each task, verify its referenced criteria, conformance to design notes, and 
 
 Fix validation failures within approved scope and revalidate. If blocked, required checks cannot run, or a material requirements/design change is needed, leave the task unchecked and stop with evidence and a proposed next step. Revisions to approved scope return to draft and require approval before execution resumes; Outcome cannot authorize deviations after the fact.
 
-After all tasks pass, verify the acceptance criteria across the integrated feature, fill Outcome with actual results, and mark done. Report completed work, checks, and remaining follow-ups. For narrower execution requests, report and stop at the requested boundary.
+After all tasks pass, verify the acceptance criteria across the integrated feature and fill Outcome with actual results. Then report the changed files, the checks that ran, and the Outcome summary including remaining follow-ups, and ask once how to finish: mark done, leave as-is, or archive. Set a terminal status only from that answer:
+
+- **done** — set `status: done`; the file stays at its path.
+- **leave as-is** — keep `status: in-progress` and stop.
+- **archive** — set `status: archived` and move the file to `.speclet/archive/{filename}`. If the move fails, leave the file in place with its previous status and report the failure.
+
+For narrower execution requests, report and stop at the requested boundary.
 
 ## Status
 
-Store status in YAML frontmatter: `draft` while awaiting approval, `approved` after explicit approval, `in-progress` when execution starts, and `done` only after full validation. Preserve unrelated metadata and content. Status changes keep the file at its current path.
+Store status in YAML frontmatter: `draft` while awaiting approval, `approved` after explicit approval, `in-progress` when execution starts, `done` once the user confirms completion after full validation, and `archived` for a speclet the user retires. Preserve unrelated metadata and content. Status changes keep the file at its current path, except archiving, which moves it to `.speclet/archive/` — a directory the panel does not scan.

@@ -29,6 +29,7 @@ import {
 	renderWidgetLines,
 	renderDetailsLines,
 	taskOptions,
+	visibleSpecs,
 	type CockpitAction,
 	type Styler,
 } from "../src/render.js";
@@ -326,13 +327,22 @@ export default function specflowTui(pi: ExtensionAPI) {
 			}
 
 			const active = controller.active();
-			const options = pickerOptions(controller.specs);
+			// Retired specs are hidden from this list; "Show finished" is what brings
+			// them back, so an empty list still gets that entry below.
+			const options = pickerOptions(visibleSpecs(controller.specs, controller.showFinished));
 			const actions = active ? actionOptions(active, controller.hidden) : [];
+			const finishedLabel = controller.showFinished ? "Hide finished" : "Show finished";
 			const choice = await ctx.ui.select(active ? `Specflow: ${active.name}` : "Specflow:", [
 				...actions.map((a) => a.label),
+				finishedLabel,
 				...options.map((o) => o.label),
 			]);
 			if (choice === undefined) return; // cancelled — keep current selection (AC3, AC7)
+
+			if (choice === finishedLabel) {
+				controller.setShowFinished(!controller.showFinished);
+				return;
+			}
 
 			const action = actions.find((a) => a.label === choice);
 			if (action && active) {

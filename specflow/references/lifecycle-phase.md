@@ -12,6 +12,8 @@ Resolve names across both layouts, using actual paths to distinguish duplicates.
 
 On an explicit completion request, verify the active spec's tasks are all checked and their completion is backed by [execution validation](execution-phase.md#validation). Unchecked or unvalidated work blocks completion; report what remains. This command does not implement tasks or check boxes on the user's behalf.
 
+Report the changed files and the checks those tasks ran before setting the metadata; a readiness report on its own never completes a spec.
+
 Set completion metadata in place. Confirm the spec path, status, and completion date. Completed specs remain available as reference documentation.
 
 ## Archive

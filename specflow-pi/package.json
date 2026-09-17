@@ -1,6 +1,6 @@
 {
 	"name": "@abianbiya/specflow",
-	"version": "0.1.3",
+	"version": "0.1.4",
 	"description": "SpecFlow for pi: spec-driven development with review gates (skill), plus a live spec cockpit panel, /specflow picker, and in-terminal document viewer (TUI extension).",
 	"keywords": [
 		"pi-package",

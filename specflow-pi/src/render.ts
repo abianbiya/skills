@@ -49,9 +49,30 @@ function rank(spec: SpecflowSpec): number {
 }
 
 /**
- * Pick the spec the panel shows. A pinned directory wins while it still
- * exists; otherwise rank by gate/status, then newest document mtime, then name
- * ascending.
+ * True for a retired spec: completed specs are implementation references and
+ * archived ones are history, so neither drives the panel any more. Status is
+ * authoritative — `inferPhase` maps completed to "done" and archived to
+ * "archived", and nothing else produces those phases, so a spec whose tasks are
+ * all checked but still `active` is NOT finished. `unknown` is unfinished too,
+ * so an unreadable spec keeps surfacing instead of silently disappearing.
+ */
+export function isFinished(spec: SpecflowSpec): boolean {
+	return spec.status === "completed" || spec.status === "archived";
+}
+
+/**
+ * The specs the panel and picker may act on: all of them with `showFinished`
+ * (the toggle is an explicit user choice, so it wins), otherwise only the ones
+ * still being worked on.
+ */
+export function visibleSpecs(specs: SpecflowSpec[], showFinished: boolean): SpecflowSpec[] {
+	return showFinished ? specs : specs.filter((s) => !isFinished(s));
+}
+
+/**
+ * Pick the spec the panel shows out of the candidates it is given. A pinned
+ * directory wins while it is among them; otherwise rank by gate/status, then
+ * newest document mtime, then name ascending.
  */
 export function selectActive(specs: SpecflowSpec[], pinned?: string): SpecflowSpec | undefined {
 	if (pinned !== undefined) {

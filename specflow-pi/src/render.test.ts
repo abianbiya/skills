@@ -3,6 +3,7 @@ import type { SpecflowPhase, SpecflowSpec, SpecflowStatus } from "./parse.js";
 import {
 	actionOptions,
 	documentOptions,
+	isFinished,
 	listText,
 	nextActionLine,
 	phaseLabel,
@@ -13,6 +14,7 @@ import {
 	selectActive,
 	taskOptions,
 	traceWarningLine,
+	visibleSpecs,
 	type Truncate,
 } from "./render.js";
 
@@ -37,6 +39,37 @@ function spec(over: Partial<SpecflowSpec> = {}): SpecflowSpec {
 	};
 	return { dir: `/r/.specflow/specs/${merged.name}`, ...merged } as SpecflowSpec;
 }
+
+describe("isFinished and visibleSpecs", () => {
+	test("completed and archived are retired; active and unknown are not", () => {
+		expect(isFinished(spec({ status: "completed" }))).toBe(true);
+		expect(isFinished(spec({ status: "archived" }))).toBe(true);
+		expect(isFinished(spec({ status: "active" }))).toBe(false);
+		// unreadable/legacy spec: must keep surfacing rather than disappear
+		expect(isFinished(spec({ status: "unknown", error: "EACCES" }))).toBe(false);
+	});
+
+	test("a spec with every task checked but still active is not retired", () => {
+		const allChecked = spec({
+			status: "active",
+			phase: 4,
+			tasks: [{ id: "1", title: "t", done: true, details: [] }],
+			done: 1,
+			total: 1,
+		});
+		expect(isFinished(allChecked)).toBe(false); // only the status transition retires a spec
+	});
+
+	test("visibleSpecs drops retired specs unless the toggle is on", () => {
+		const specs = [
+			spec({ name: "running", status: "active" }),
+			spec({ name: "shipped", status: "completed" }),
+			spec({ name: "old", status: "archived" }),
+		];
+		expect(visibleSpecs(specs, false).map((s) => s.name)).toEqual(["running"]);
+		expect(visibleSpecs(specs, true).map((s) => s.name)).toEqual(["running", "shipped", "old"]);
+	});
+});
 
 describe("selectActive", () => {
 	test("gate-paused spec outranks an in-progress one", () => {

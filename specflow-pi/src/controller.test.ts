@@ -193,3 +193,49 @@ describe("SpecflowController polling (AC6)", () => {
 		expect(controller.specs).toEqual([]);
 	});
 });
+
+describe("retired specs stay hidden until the picker asks for them", () => {
+	const COMPLETED = ["---", "status: completed", "---", "", "## Tasks", "", "- [x] 1. Shipped thing", ""].join("\n");
+	const ARCHIVED = ["---", "status: archived", "---", "", "## Tasks", "", "- [x] 1. Abandoned thing", ""].join("\n");
+
+	test("completed and archived specs are not selected", async () => {
+		await writeSpec("specs/shipped/tasks.md", COMPLETED);
+		await writeSpec("specs/old/tasks.md", ARCHIVED);
+		const { controller } = harness();
+		await controller.scan();
+		expect(controller.specs).toHaveLength(2); // still discovered, just not shown
+		expect(controller.active()).toBeUndefined();
+	});
+
+	test("an active spec still wins while a retired one is hidden", async () => {
+		await writeSpec("specs/running/tasks.md", TASKS_ACTIVE);
+		await writeSpec("specs/shipped/tasks.md", COMPLETED);
+		const { controller } = harness();
+		await controller.scan();
+		controller.pin(controller.specs.find((s) => s.name === "shipped")!.dir);
+		expect(controller.active()?.name).toBe("running"); // a retired pin resolves to nothing
+	});
+
+	test("setShowFinished reveals a retired spec and drops its pin when switched off", async () => {
+		await writeSpec("specs/running/tasks.md", TASKS_ACTIVE);
+		await writeSpec("specs/shipped/tasks.md", COMPLETED);
+		const { controller } = harness();
+		await controller.scan();
+		controller.setShowFinished(true);
+		controller.pin(controller.specs.find((s) => s.name === "shipped")!.dir);
+		expect(controller.active()?.name).toBe("shipped");
+
+		controller.setShowFinished(false);
+		expect(controller.pinned).toBeUndefined();
+		expect(controller.active()?.name).toBe("running");
+	});
+
+	test("stop() clears the finished toggle", async () => {
+		await writeSpec("specs/shipped/tasks.md", COMPLETED);
+		const { controller } = harness();
+		await controller.scan();
+		controller.setShowFinished(true);
+		controller.stop();
+		expect(controller.showFinished).toBe(false);
+	});
+});

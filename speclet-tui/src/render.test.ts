@@ -1,5 +1,5 @@
 import { describe, test, expect } from "bun:test";
-import { selectActive, allSpecletsDone, renderWidgetLines, renderDetailsLines, renderScrollbar, wrapText, listText, pickerOptions, plainStyler, type Truncate } from "./render.js";
+import { selectActive, allSpecletsFinished, isFinished, visibleFiles, renderWidgetLines, renderDetailsLines, renderScrollbar, wrapText, listText, pickerOptions, plainStyler, type Truncate } from "./render.js";
 import type { SpecletFile } from "./speclet.js";
 
 /** Reference truncation: display-width aware slice (CJK wide = 2 columns), ANSI-escape transparent like pi-tui's truncateToWidth. */
@@ -358,22 +358,43 @@ describe("pickerOptions", () => {
 	});
 });
 
-describe("allSpecletsDone", () => {
-	test("true only when there is at least one speclet and every one is done", () => {
-		expect(allSpecletsDone([file({ status: "done" }), file({ status: "done" })])).toBe(true);
-		expect(allSpecletsDone([file({ status: "done" }), file({ status: "in-progress" })])).toBe(false);
-		expect(allSpecletsDone([file({ status: "draft" })])).toBe(false);
+describe("isFinished and visibleFiles", () => {
+	test("done and archived are finished; every other status is not", () => {
+		expect(isFinished(file({ status: "done" }))).toBe(true);
+		expect(isFinished(file({ status: "archived" }))).toBe(true);
+		for (const status of ["draft", "approved", "in-progress", "unknown"] as const) {
+			expect(isFinished(file({ status }))).toBe(false);
+		}
 	});
 
-	test("an empty list is not 'all done' — that is the no-speclets case", () => {
-		expect(allSpecletsDone([])).toBe(false);
+	test("visibleFiles drops retired specs unless the toggle is on", () => {
+		const files = [file({ filename: "a.md", status: "in-progress" }), file({ filename: "b.md", status: "done" }), file({ filename: "c.md", status: "archived" })];
+		expect(visibleFiles(files, false).map((f) => f.filename)).toEqual(["a.md"]);
+		expect(visibleFiles(files, true).map((f) => f.filename)).toEqual(["a.md", "b.md", "c.md"]);
+	});
+
+	test("an unreadable speclet stays visible and keeps the panel up", () => {
+		const files = [file({ status: "done" }), file({ filename: "b.md", status: "unknown", error: "EACCES" })];
+		expect(visibleFiles(files, false).map((f) => f.filename)).toEqual(["b.md"]);
+	});
+});
+
+describe("allSpecletsFinished", () => {
+	test("true only when there is at least one speclet and every one is retired", () => {
+		expect(allSpecletsFinished([file({ status: "done" }), file({ status: "archived" })])).toBe(true);
+		expect(allSpecletsFinished([file({ status: "done" }), file({ status: "in-progress" })])).toBe(false);
+		expect(allSpecletsFinished([file({ status: "draft" })])).toBe(false);
+	});
+
+	test("an empty list is not 'all finished' — that is the no-speclets case", () => {
+		expect(allSpecletsFinished([])).toBe(false);
 	});
 
 	test("done beats task count and unknown keeps the panel visible", () => {
 		// status is authoritative: done with unchecked tasks is still done
-		expect(allSpecletsDone([file({ status: "done", tasks: [{ id: "1", title: "t", done: false }] })])).toBe(true);
+		expect(allSpecletsFinished([file({ status: "done", tasks: [{ id: "1", title: "t", done: false }] })])).toBe(true);
 		// an unreadable/legacy speclet must not silently hide the panel
-		expect(allSpecletsDone([file({ status: "done" }), file({ status: "unknown" })])).toBe(false);
-		expect(allSpecletsDone([file({ status: "done", error: "EACCES" })])).toBe(true);
+		expect(allSpecletsFinished([file({ status: "done" }), file({ status: "unknown" })])).toBe(false);
+		expect(allSpecletsFinished([file({ status: "done", error: "EACCES" })])).toBe(true);
 	});
 });

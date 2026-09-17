@@ -116,11 +116,11 @@ describe("SpecletController", () => {
 		await controller.scan();
 
 		const tmp = join(dir, "a.md.tmp");
-		await writeFile(tmp, "---\nstatus: done\n---\n# A\n");
+		await writeFile(tmp, "---\nstatus: approved\n---\n# A\n");
 		const { rename } = await import("node:fs/promises");
 		await rename(tmp, join(specDir, "a.md"));
 		await controller.scan();
-		expect(controller.active()?.status).toBe("done");
+		expect(controller.active()?.status).toBe("approved");
 	});
 
 	test("pinned selection survives rescans and is dropped when file disappears", async () => {
@@ -263,7 +263,7 @@ describe("SpecletController", () => {
 	}, 5000);
 });
 
-describe("panel auto-hide when every speclet is done", () => {
+describe("panel auto-hide when every speclet is finished", () => {
 	const DONE = "---\nstatus: done\n---\n\n# Done spec\n\n## Tasks\n\n- [x] 1. Done thing\n";
 	const ACTIVE = "---\nstatus: in-progress\n---\n\n# Active spec\n\n## Tasks\n\n- [ ] 1. Open thing\n";
 
@@ -289,7 +289,7 @@ describe("panel auto-hide when every speclet is done", () => {
 		expect(controller.panelVisible()).toBe(false);
 	});
 
-	test("an explicit reveal overrides the auto-hide; hiding reverses it", async () => {
+	test("an explicit reveal cannot resurrect a retired speclet; the finished toggle can", async () => {
 		await mkdir(specDir, { recursive: true });
 		await writeSpec("a.md", DONE);
 		const { controller } = makeController();
@@ -297,6 +297,9 @@ describe("panel auto-hide when every speclet is done", () => {
 		expect(controller.panelVisible()).toBe(false);
 
 		controller.reveal();
+		expect(controller.panelVisible()).toBe(false); // "Show panel" is not the way back for a retired spec
+
+		controller.setShowFinished(true);
 		expect(controller.panelVisible()).toBe(true);
 
 		controller.hide();
@@ -323,14 +326,19 @@ describe("panel auto-hide when every speclet is done", () => {
 		expect(updates.length).toBe(before + 1);
 	});
 
-	test("a pinned done speclet is not visible until revealed", async () => {
+	test("a pinned retired speclet needs the finished toggle, not just a reveal", async () => {
 		await mkdir(specDir, { recursive: true });
 		await writeSpec("a.md", DONE);
 		const { controller } = makeController();
 		await controller.scan();
 		controller.pin("a.md");
-		expect(controller.active()?.filename).toBe("a.md");
+		expect(controller.active()).toBeUndefined(); // retired specs leave the candidate set
 		expect(controller.panelVisible()).toBe(false);
+		controller.reveal();
+		expect(controller.panelVisible()).toBe(false); // a reveal alone cannot show a retired spec
+		controller.setShowFinished(true);
+		expect(controller.active()?.filename).toBe("a.md");
+		expect(controller.panelVisible()).toBe(true);
 	});
 
 	test("stop() clears the explicit reveal", async () => {
@@ -353,5 +361,73 @@ describe("panel auto-hide when every speclet is done", () => {
 		await controller.scan();
 		expect(controller.files.some((f) => f.error)).toBe(true);
 		expect(controller.panelVisible()).toBe(true);
+	});
+});
+
+describe("retired speclets stay hidden until the picker asks for them", () => {
+	const DONE = "---\nstatus: done\n---\n\n# Done spec\n\n## Tasks\n\n- [x] 1. Done thing\n";
+	const ARCHIVED = "---\nstatus: archived\n---\n\n# Archived spec\n\n## Tasks\n\n- [x] 1. Archived thing\n";
+	const ACTIVE = "---\nstatus: in-progress\n---\n\n# Active spec\n\n## Tasks\n\n- [ ] 1. Open thing\n";
+
+	test("done and archived speclets are neither selected nor rendered", async () => {
+		await mkdir(specDir, { recursive: true });
+		await writeSpec("a.md", DONE);
+		await writeSpec("b.md", ARCHIVED);
+		const { controller } = makeController();
+		await controller.scan();
+		expect(controller.files).toHaveLength(2); // parsed, just not shown
+		expect(controller.active()).toBeUndefined();
+		expect(controller.panelVisible()).toBe(false);
+	});
+
+	test("an unfinished sibling still shows while a retired one is hidden", async () => {
+		await mkdir(specDir, { recursive: true });
+		await writeSpec("a.md", ACTIVE);
+		await writeSpec("b.md", DONE);
+		const { controller } = makeController();
+		await controller.scan();
+		controller.pin("b.md"); // a retired pin resolves to nothing, not to b.md
+		expect(controller.active()?.filename).toBe("a.md");
+		expect(controller.panelVisible()).toBe(true);
+	});
+
+	test("setShowFinished reveals retired speclets and drops a retired pin when switched off", async () => {
+		await mkdir(specDir, { recursive: true });
+		await writeSpec("a.md", ACTIVE);
+		await writeSpec("b.md", DONE);
+		const { controller } = makeController();
+		await controller.scan();
+		controller.setShowFinished(true);
+		controller.pin("b.md");
+		expect(controller.active()?.filename).toBe("b.md");
+
+		controller.setShowFinished(false);
+		expect(controller.pinned).toBeUndefined();
+		expect(controller.active()?.filename).toBe("a.md");
+	});
+
+	test("archived speclets are read only while the toggle is on", async () => {
+		await mkdir(join(specDir, "archive"), { recursive: true });
+		await writeFile(join(specDir, "archive", "old.md"), ARCHIVED);
+		const { controller } = makeController();
+		await controller.scan();
+		expect(controller.files).toEqual([]); // the poll never descends into the archive directory
+		expect(controller.panelVisible()).toBe(false);
+
+		controller.setShowFinished(true);
+		await controller.scan();
+		expect(controller.files.map((f) => f.filename)).toEqual(["old.md"]);
+		expect(controller.active()?.status).toBe("archived");
+		expect(controller.panelVisible()).toBe(true);
+	});
+
+	test("stop() clears the finished toggle", async () => {
+		await mkdir(specDir, { recursive: true });
+		await writeSpec("a.md", DONE);
+		const { controller } = makeController();
+		await controller.scan();
+		controller.setShowFinished(true);
+		controller.stop();
+		expect(controller.showFinished).toBe(false);
 	});
 });

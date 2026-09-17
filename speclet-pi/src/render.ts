@@ -10,30 +10,49 @@ import { padVisible, renderScrollbar, visibleLen, wrapText } from "./shared.js";
 
 export { renderScrollbar, wrapText };
 
-/** Lower rank wins. Mirrors AC1: in-progress, approved, draft, done, then unknown. */
+/** Lower rank wins. Mirrors AC1: in-progress, approved, draft, the retired states, then unknown. */
 const STATUS_RANK: Record<string, number> = {
 	"in-progress": 0,
 	approved: 1,
 	draft: 2,
 	done: 3,
+	archived: 3,
 	unknown: 4,
 };
 
 /**
- * True when every discovered speclet is finished (`status: done`). The panel
- * hides itself in that state: there is nothing left to act on, and a permanent
- * "(3/3) · done" row above the editor is just noise. An empty list is not
- * "all done" — with no speclets the panel is hidden for the other reason.
- * `unknown` (unreadable or status-less legacy) counts as unfinished so a broken
- * speclet keeps surfacing instead of silently disappearing.
+ * True for a retired speclet: the panel no longer renders it and the picker no
+ * longer lists it, in this session or any later one. `unknown` is deliberately
+ * not finished — an unreadable or status-less speclet keeps surfacing instead
+ * of silently disappearing.
  */
-export function allSpecletsDone(files: SpecletFile[]): boolean {
-	return files.length > 0 && files.every((f) => f.status === "done");
+export function isFinished(spec: SpecletFile): boolean {
+	return spec.status === "done" || spec.status === "archived";
 }
 
 /**
- * Pick the speclet the panel shows. A pinned filename wins while it exists;
- * otherwise rank by status, then newest mtime, then filename ascending.
+ * The specs the panel and picker may act on: all of them with `showFinished`
+ * (the toggle is an explicit user choice, so it wins), otherwise only the
+ * unfinished ones.
+ */
+export function visibleFiles(files: SpecletFile[], showFinished: boolean): SpecletFile[] {
+	return showFinished ? files : files.filter((f) => !isFinished(f));
+}
+
+/**
+ * True when every discovered speclet is retired. The panel hides itself in that
+ * state: there is nothing left to act on, and a permanent "(3/3) · done" row
+ * above the editor is just noise. An empty list is not "all finished" — with no
+ * speclets the panel is hidden for the other reason.
+ */
+export function allSpecletsFinished(files: SpecletFile[]): boolean {
+	return files.length > 0 && files.every(isFinished);
+}
+
+/**
+ * Pick the speclet the panel shows out of the candidates it is given. A pinned
+ * filename wins while it is among them; otherwise rank by status, then newest
+ * mtime, then filename ascending.
  */
 export function selectActive(files: SpecletFile[], pinned?: string): SpecletFile | undefined {
 	if (pinned !== undefined) {
