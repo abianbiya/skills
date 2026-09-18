@@ -34,7 +34,7 @@ Lightweight spec-driven development for small features — one spec file (`.spec
 
 **Workflow:** Draft → Approval → Validated execution → Report → Done or archived
 
-**Best for:** Small features where a full SpecFlow workflow would be excessive.
+**Best for:** Small features where a full SpecFlow workflow would be excessive — and for any time you want a prepared, approved todo list before the agent starts building.
 
 **Also available as a pi package** — bundles the skill with a live checklist panel, `/speclet` picker, details popup, and task inspector:
 

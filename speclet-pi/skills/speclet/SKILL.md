@@ -1,11 +1,11 @@
 ---
 name: speclet
-description: "Plan and implement small features in one spec file with a single approval gate. Use when a full SpecFlow workflow would be excessive."
+description: "Plan and implement small features in one spec file with a single approval gate. Use when a full SpecFlow workflow would be excessive, when the user asks for a todo list or plan, or when a feature should be prepared before building."
 ---
 
 # Speclet
 
-One spec file, one approval gate, then validated execution of the full checklist. Keep the scope small; offer SpecFlow when risk, coupling, or migration complexity warrants separate requirements and design reviews. Do not switch workflows without the user's agreement.
+One spec file, one approval gate, then validated execution of the full checklist. Also use it when the user asks for a todo list or a prepared plan for a feature: the task checklist is that todo list, and it stays small. Offer SpecFlow when risk, coupling, or migration complexity warrants separate requirements and design reviews. Do not switch workflows without the user's agreement.
 
 ## Planning and Approval
 

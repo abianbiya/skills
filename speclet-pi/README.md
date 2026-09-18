@@ -27,7 +27,7 @@ pi install -l /absolute/path/to/speclet-pi
 
 ## Usage
 
-- Ask for a small feature and the agent drafts a speclet in `.speclet/{feature-name}.md`; approve it to start execution.
+- Ask for a small feature — or just for a todo list or plan for one — and the agent drafts a speclet in `.speclet/{feature-name}.md`; approve it to start execution.
 - `/speclet` — list speclets and pick which one the panel shows.
 - Live panel — always-visible checklist (`✓`/`○` tasks, status, progress) that updates within ~0.5 s of file edits. A speclet with `status: done` or `status: archived` is retired: the panel stops following it and `/speclet` stops listing it, in this session and in every later one. Choose **Show finished** in `/speclet` to list retired speclets — including the archived ones in `.speclet/archive/` — and follow one again.
 - `shift+up` — task inspector: navigate tasks, press enter to see a task's description and acceptance criteria. The key is configurable (see below).
