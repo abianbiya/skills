@@ -119,6 +119,10 @@ function metaSuffix(spec: SpecflowSpec): string {
  */
 export function nextActionLine(spec: SpecflowSpec): string | undefined {
 	if (spec.tasks.length === 0) return undefined;
+	if (spec.status === "archived") return "Spec archived";
+	if (spec.status === "completed") return "Plan completed";
+	if (spec.status === "unknown" || spec.error) return "Fix spec metadata/error before execution";
+	if (spec.gate !== null) return "Awaiting approval";
 	if (spec.tasks.every((t) => t.done)) return "All tasks done";
 
 	const next = nextTask(spec);
@@ -150,6 +154,7 @@ export function traceWarningLine(spec: SpecflowSpec): string | undefined {
 		parts.push(`${trace.orphan.length} orphan ${trace.orphan.length === 1 ? "criterion" : "criteria"}`);
 	}
 	if (deps.dangling.length > 0) parts.push(`${deps.dangling.length} dangling dep`);
+	if (spec.error) parts.push("metadata/error");
 	return parts.length > 0 ? `⚠ ${parts.join(" · ")}` : undefined;
 }
 
@@ -348,7 +353,7 @@ export function taskOptions(spec: SpecflowSpec): TaskOption[] {
 }
 
 /** The action a /specflow menu entry performs (AC6). */
-export type CockpitAction = "execute" | "approve" | "validate" | "document" | "toggle";
+export type CockpitAction = "execute" | "approve" | "validate" | "settings" | "document" | "toggle";
 
 export interface ActionOption {
 	label: string;
@@ -362,9 +367,12 @@ export interface ActionOption {
  */
 export function actionOptions(spec: SpecflowSpec, hidden: boolean): ActionOption[] {
 	const actions: ActionOption[] = [];
-	if (spec.tasks.some((t) => !t.done)) actions.push({ label: "Execute a task…", action: "execute" });
-	if (spec.gate !== null) actions.push({ label: "Approve gate and resume", action: "approve" });
+	const metadataAllowsExecution = spec.status === "active" && spec.gate === null && !spec.error;
+	if (metadataAllowsExecution && spec.tasks.some((t) => !t.done)) actions.push({ label: "Execute a task…", action: "execute" });
+	if (spec.status === "active" && spec.gate === "review" && !spec.error) actions.push({ label: "Approve gate and resume", action: "approve" });
 	if (spec.tasks.length > 0) actions.push({ label: "Validate implementation", action: "validate" });
+
+	if (!isFinished(spec)) actions.push({ label: "Workflow settings…", action: "settings" });
 	actions.push({ label: "Open document…", action: "document" });
 	actions.push({ label: hidden ? "Show panel" : "Hide panel", action: "toggle" });
 	return actions;

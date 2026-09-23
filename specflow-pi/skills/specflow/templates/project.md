@@ -1,57 +1,42 @@
-# Project Context
+# {Project name} — project context
 
-## Tech Stack
+{In two or three sentences, explain what the app is, who uses it, and the agreed delivery outcome. Keep this current as the project changes.}
 
-- **Language:** [e.g., TypeScript, Python, Java]
-- **Framework:** [e.g., Next.js, FastAPI, Spring Boot]
-- **Database:** [e.g., PostgreSQL, MongoDB, MySQL]
-- **Testing:** [e.g., Jest, pytest, JUnit]
-- **Build Tools:** [e.g., Vite, Webpack, Maven]
+## Purpose and expected outcome
+- Purpose: {problem the app addresses}
+- Agreed delivery outcome: {what the user should be able to do at the selected target}
 
-## Coding Conventions
+## Users and simple flow
+- Users and usage context: {who uses it and where}
+- Main flow: {entry → primary action → result → return use}
 
-- **Naming:** [e.g., camelCase for variables, PascalCase for classes]
-- **File Organization:** [e.g., feature-based folders, separation of concerns]
-- **Code Style:** [e.g., ESLint config, Prettier settings, PEP 8]
-- **Comments:** [e.g., JSDoc for public APIs, inline for complex logic]
-- **Error Handling:** [e.g., custom error classes, consistent error responses]
+## Existing system and conventions
+For an existing repository, inspect applicable project instructions, stack, entry points, data and integration boundaries, and relevant conventions. Record verified facts and link existing guidance instead of copying it. For a new repository, record its status and location; establish conventions during implementation.
 
-## Architectural Patterns
+## Product and technical foundations
+Assess each area for a new app. Record `N/A` with a reason when irrelevant. Use `Confirmed`, `Proposed`, `Assumed`, `Open`, or `Deferred` for product and technology decisions. Use `Verified` only for facts inspected in the repository or runtime; a choice can be both `Confirmed` and `Verified` after implementation. Keep the basis brief so a recommendation is not mistaken for a user decision.
 
-- **Architecture Style:** [e.g., Layered, Clean Architecture, Microservices]
-- **Design Patterns:** [e.g., Repository pattern, Factory pattern, Observer]
-- **State Management:** [e.g., Redux, Context API, Vuex]
-- **API Design:** [e.g., RESTful, GraphQL, gRPC]
-- **Data Flow:** [e.g., unidirectional data flow, event-driven]
+| Area | Choice or current fact | State | Basis |
+|---|---|---|---|
+| Repository | {status and location} | {Verified / Open} | {inspection or user answer} |
+| Platform and client | {web/mobile/desktop/CLI/API} | {decision state} | {reason or source} |
+| Language | {language or proposal} | {decision state} | {reason or source} |
+| Framework | {framework, none, or proposal} | {decision state} | {reason or source} |
+| Runtime | {required version/environment} | {decision state; Verified when checked} | {check or source} |
+| Storage and data ownership | {database/files and owner} | {decision state} | {reason or source} |
+| Identity and access | {login, roles, tenancy, or N/A} | {decision state} | {reason or source} |
+| Hosting and operation | {local or hosted environment} | {decision state} | {reason or source} |
+| Integrations | {services or N/A} | {decision state} | {reason or source} |
 
-## Testing Standards
+## Run and verify
+Record the verified start command, entry URL or path, relevant checks, required runtime, and known integration limits after implementation. Keep credentials out. Distinguish commands that were run from commands merely proposed.
 
-- **Unit Tests:** [e.g., minimum 80% coverage, test pure functions]
-- **Integration Tests:** [e.g., test API endpoints, database interactions]
-- **Property-Based Tests:** [e.g., use fast-check/Hypothesis for core logic]
-- **Test Organization:** [e.g., co-located with source, separate test directory]
-- **Mocking Strategy:** [e.g., mock external services, use test databases]
+## Constraints and workflow preferences
+Record material compatibility, access, privacy, security, accessibility, localization, data, cost, connectivity, and release constraints. Workflow preferences belong in `.specflow/config.json`; see the configuration reference. Do not infer that assurance or delivery settings settle product or technology decisions.
 
-## Security Practices
+## Specs history
+Keep a short index of project specs with links and their current lifecycle status from each `tasks.md`. Put detailed approvals, task evidence, and decisions in the individual spec rather than duplicating them here.
 
-- **Authentication:** [e.g., JWT, OAuth 2.0, session-based]
-- **Authorization:** [e.g., RBAC, ABAC, permission middleware]
-- **Data Validation:** [e.g., input sanitization, schema validation]
-- **Secrets Management:** [e.g., environment variables, vault services]
-
-## Performance Guidelines
-
-- **Optimization:** [e.g., lazy loading, code splitting, caching strategies]
-- **Database:** [e.g., indexing strategy, query optimization, connection pooling]
-- **Monitoring:** [e.g., logging standards, metrics collection, alerting]
-
-## Related Documentation
-
-- [Link to architecture docs]
-- [Link to API documentation]
-- [Link to deployment guides]
-- [Link to team wiki]
-
----
-
-**Instructions:** Fill in the sections above with your project-specific details. This file will be read by the AI assistant when creating and executing specs to ensure consistency across all features.
+| Spec | Scope | Status | Link |
+|---|---|---|---|
+| {Name} | {brief outcome} | {active/completed/archived} | {link to the spec's tasks.md} |

@@ -212,6 +212,8 @@ export function parseTasks(body: string): SpecflowTask[] {
 
 export interface PhaseInput {
 	status: SpecflowStatus;
+	/** True only when lifecycle metadata is valid and the spec can be executed. */
+	canExecute: boolean;
 	hasRequirements: boolean;
 	hasDesign: boolean;
 	hasTasks: boolean;
@@ -220,15 +222,15 @@ export interface PhaseInput {
 }
 
 /**
- * Workflow phase: archived/completed win outright; a spec with executable
- * tasks is Phase 3 (Tasks) while gated, Phase 4 (Executing) once cleared;
- * otherwise the newest missing document decides (design => 2, else 1). A
- * metadata-only tasks.md never reads as Phase 3/4.
+ * Workflow phase: archived/completed win outright; executable tasks are Phase
+ * 3 (Tasks) unless valid active metadata and a cleared gate make them runnable,
+ * in which case they are Phase 4 (Executing). Otherwise the newest missing
+ * document decides (design => 2, else 1). Metadata-only tasks never read as 3/4.
  */
 export function inferPhase(input: PhaseInput): SpecflowPhase {
 	if (input.status === "archived") return "archived";
 	if (input.status === "completed") return "done";
-	if (input.hasTasks && input.total > 0) return input.gate === "review" ? 3 : 4;
+	if (input.hasTasks && input.total > 0) return input.canExecute && input.gate === null ? 4 : 3;
 	if (input.hasDesign) return 2;
 	return 1;
 }
@@ -320,6 +322,17 @@ async function parseSpecDir(dir: string, parentName: string): Promise<SpecflowSp
 		spec.tasks = parseTasks(body);
 		spec.total = spec.tasks.length;
 		spec.done = spec.tasks.filter((t) => t.done).length;
+
+		if (!spec.legacy && spec.total > 0) {
+			if (spec.statusSource === "none") {
+				errors.push("tasks.md requires YAML frontmatter with status: active, completed, or archived");
+			} else if (spec.status === "unknown") {
+				errors.push("tasks.md has invalid lifecycle metadata");
+			}
+			if (frontmatterScalar(frontmatter, "gate") !== undefined && spec.gate === null) {
+				errors.push("tasks.md has invalid gate metadata; omit gate or use gate: review");
+			}
+		}
 	}
 
 	if (spec.statusSource === "none" && spec.legacy) {
@@ -331,6 +344,7 @@ async function parseSpecDir(dir: string, parentName: string): Promise<SpecflowSp
 	if (errors.length > 0) spec.error = errors.join("; ");
 	spec.phase = inferPhase({
 		status: spec.status,
+		canExecute: spec.status === "active" && spec.gate === null && !spec.error,
 		hasRequirements: spec.docs.requirements !== undefined,
 		hasDesign: spec.docs.design !== undefined,
 		hasTasks: spec.docs.tasks !== undefined,

@@ -153,6 +153,7 @@ describe("parseTasks", () => {
 describe("inferPhase", () => {
 	const base: PhaseInput = {
 		status: "active",
+		canExecute: true,
 		hasRequirements: true,
 		hasDesign: true,
 		hasTasks: true,
@@ -168,6 +169,7 @@ describe("inferPhase", () => {
 	test("tasks: gate set => 3, cleared => 4", () => {
 		expect(phase({ gate: "review" as Gate })).toBe(3);
 		expect(phase({ gate: null })).toBe(4);
+		expect(phase({ status: "unknown", canExecute: false, gate: null })).toBe(3);
 	});
 	test("metadata-only tasks.md (total 0) never reads as 3/4", () => {
 		expect(phase({ total: 0, gate: "review" as Gate })).toBe(2);
@@ -275,6 +277,7 @@ describe("discoverSpecflows", () => {
 		const r = await discoverSpecflows(specflowDir);
 		expect(r.specs[0]!.status).toBe("unknown");
 		expect(r.specs[0]!.statusSource).toBe("none");
+		expect(r.specs[0]!.phase).toBe(3);
 	});
 
 	test("flat spec with invalid status value is unknown (frontmatter source)", async () => {
@@ -284,6 +287,24 @@ describe("discoverSpecflows", () => {
 		const r = await discoverSpecflows(specflowDir);
 		expect(r.specs[0]!.status).toBe("unknown");
 		expect(r.specs[0]!.statusSource).toBe("frontmatter");
+		expect(r.specs[0]!.error).toContain("invalid lifecycle metadata");
+		expect(r.specs[0]!.phase).toBe(3);
+	});
+
+	test("flat executable spec without frontmatter is unknown and reports the repair", async () => {
+		await writeSpec(flatSpec("missing-status"), { tasks: "# Plan\n\n- [ ] 1.1 Task\n" });
+		const r = await discoverSpecflows(specflowDir);
+		expect(r.specs[0]!.status).toBe("unknown");
+		expect(r.specs[0]!.error).toContain("requires YAML frontmatter");
+		expect(r.specs[0]!.phase).toBe(3);
+	});
+
+	test("body-only lifecycle metadata is not treated as frontmatter", async () => {
+		await writeSpec(flatSpec("body-metadata"), { tasks: "# Plan\n\ngate: review\n\n- [ ] 1.1 Task\n" });
+		const r = await discoverSpecflows(specflowDir);
+		expect(r.specs[0]!.gate).toBeNull();
+		expect(r.specs[0]!.error).toContain("requires YAML frontmatter");
+		expect(r.specs[0]!.phase).toBe(3);
 	});
 
 	test("metadata-only tasks.md: listed, zero tasks, not Phase 3/4", async () => {
@@ -307,7 +328,7 @@ describe("discoverSpecflows", () => {
 		});
 		const r = await discoverSpecflows(specflowDir);
 		expect(r.specs[0]!.gate).toBeNull();
-		expect(r.specs[0]!.phase).toBe(4);
+		expect(r.specs[0]!.phase).toBe(3);
 	});
 
 	test("legacy status regression: specs/archived/older infers from parent, not own name", async () => {

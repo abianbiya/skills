@@ -20,6 +20,7 @@ import { matchesKey, Markdown, truncateToWidth, type MarkdownTheme } from "@eare
 import { SpecflowController } from "../src/controller.js";
 import { createMarkdownBody } from "../src/markdown.js";
 import { discoverSpecflows, type SpecflowSpec } from "../src/parse.js";
+import { chooseSetting, settingRequest } from "../src/settings.js";
 import { renderScrollbar, stripControlSequences, wrapText } from "../src/shared.js";
 import {
 	actionOptions,
@@ -227,8 +228,13 @@ async function runCockpitAction(
 			return;
 		}
 		case "approve":
-			confirm(`Approve and resume the ${spec.name} spec.`);
+			confirm(`Approve only the pending decision recorded in the spec at ${JSON.stringify(spec.dir)}. If it is approval of the plan, authorize exactly the execution scope requested in that plan and record the resulting authority; do not infer broader scope or treat an empty/unclear request as authorization. This does not expand a planning, prototype, or skill-evaluation assignment into application implementation.`);
 			return;
+		case "settings": {
+			const choice = await chooseSetting((title, options) => ctx.ui.select(title, options));
+			if (choice) confirm(settingRequest(spec.dir, choice));
+			return;
+		}
 		case "validate":
 			confirm(`Validate the ${spec.name} spec implementation.`);
 			return;

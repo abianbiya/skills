@@ -43,7 +43,7 @@ export function criteriaIdsOf(task: SpecflowTask): string[] {
 
 /** Dependency ids a task declares, from its `Depends on:` detail rows. */
 export function dependsOn(task: SpecflowTask): string[] {
-	return rowValues(task.details, DEPENDS_ROW_RE);
+	return rowValues(task.details, DEPENDS_ROW_RE).filter((id) => id.toLowerCase() !== "none");
 }
 
 export interface CriteriaLink {

@@ -48,6 +48,12 @@ describe("criteriaIdsOf", () => {
 });
 
 describe("dependsOn", () => {
+	test("legacy none sentinel leaves a task ready without hiding real dependencies", () => {
+		const first = task("1.1", false, ["- Depends on: none"]);
+		expect(dependsOn(first)).toEqual([]);
+		expect(dependencyGraph([first]).ready).toEqual(["1.1"]);
+		expect(dependsOn(task("1.2", false, ["- Depends on: NONE, 1.1"]))).toEqual(["1.1"]);
+	});
 	test("parses dotted ids from the exact row format", () => {
 		expect(dependsOn(task("2.1", false, ["- Depends on: 1.1"]))).toEqual(["1.1"]);
 		expect(dependsOn(task("2.1", false, ["- Depends on: 1.1, 1.2"]))).toEqual(["1.1", "1.2"]);

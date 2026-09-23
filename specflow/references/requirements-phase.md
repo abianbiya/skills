@@ -1,33 +1,42 @@
-# Phase 1: Requirements
+# Requirements: interview for outcomes and behavior
 
-Use project context from `.specflow/project.md`; if missing, follow [project setup](project-setup.md). Create or update `requirements.md` in the active feature directory defined in [SKILL.md](../SKILL.md#directory-layout). Consult related completed specs when relevant, resolving status through [Lifecycle](lifecycle-phase.md#status-and-legacy-layout). Link to their actual paths (`../{feature-name}/` in the flat layout).
+For a greenfield app, interview after the project-foundation round. Ask in small, coherent groups and follow the user's answers; do not present one giant questionnaire. Cover the areas below to the extent they affect the intended first release. Pause between groups to summarize what is confirmed, what remains uncertain, and what you recommend next. There is no fixed question limit for new-app discovery. Do not repeat project-foundation questions already resolved in `project.md`.
 
-Generate an initial draft from the idea without a preliminary interview unless grilling is requested. Identify assumptions and unresolved information rather than silently inventing scope.
+- user roles, context, trigger, problem, current workaround, and desired change;
+- the main journey from entry to successful outcome, with a concrete example;
+- business rules, important states and transitions, permissions, and user-visible decisions;
+- alternate paths and relevant empty, loading, unavailable, stale, invalid, or error states;
+- information the user provides, sees, changes, retains, exports, or deletes;
+- accessibility, language, privacy, safety, and compatibility needs that affect the experience;
+- what makes the first release useful, what is explicitly excluded, and what could change that boundary.
 
-## Grilling (Optional)
+For an existing feature, use repository evidence and narrow the interview to uncertainty that affects its scope, outcome, cost, risk, or acceptance. Users may skip a topic; record a material unknown instead of blocking on a low-impact detail.
 
-When requested, surface contextual questions whose answers would materially change the spec: ambiguities, concurrency, edge cases, hidden decisions, or integration constraints. Present one block, each question paired with a recommendation and brief reasoning. Wait for answers before drafting; use the confirmed intent.
+## Turn behavior into reviewable requirements
 
-## Document Content
+First capture the user's examples in plain language. For a new app, use EARS as the default notation for confirmed, externally observable functional behavior and material business rules. Make at least one EARS pass over each primary journey and important rule group. Keep product purpose, rationale, design choices, and constraints in plain language when EARS would obscure them. For existing-project changes, use EARS for behavior that benefits from precise conditions and responses.
 
-- Introduction: what, why, intended users, and scope.
-- Numbered requirements, each with a descriptive name, a user story (As a role, I want a capability, so that a benefit), and numbered acceptance criteria. Optional notes capture constraints or dependencies.
-- Out of Scope, Assumptions, and Dependencies sections.
+- **Event:** `WHEN {trigger}, THE SYSTEM SHALL {observable response}.`
+- **State:** `WHILE {condition}, THE SYSTEM SHALL {observable response}.`
+- **Unwanted condition:** `IF {condition}, THEN THE SYSTEM SHALL {safe response}.`
+- **Optional feature:** `WHERE {feature is enabled}, THE SYSTEM SHALL {response}.`
+- **Always applicable:** `THE SYSTEM SHALL {invariant}.`
 
-Use stable references: `1` identifies Requirement 1; `1.2` identifies its second acceptance criterion. Preserve existing IDs when revising. Design and tasks use these same references.
+For each important journey or rule, ask what starts it, who is acting, what state or permissions apply, what the user or another system should observe, and what should happen for a relevant invalid, missing, denied, or unavailable case. Ask about the data change only when it affects the user's result, privacy, or integrity. Convert the answers into one or more concise EARS criteria; ask a follow-up if trigger, condition, actor/permission, expected response, or important exception remains ambiguous. EARS is not a mandate to turn every preference, design detail, or implementation step into a requirement. Keep goals and rationale readable; use stable IDs such as `AC1` for observable acceptance examples. Do not equate each requirement with a separate test.
 
-## EARS Acceptance Criteria
+Write `requirements.md` so an implementer and reviewer can understand the app without repeating the interview. Keep it concise, but do not omit a relevant answer merely to meet a length target:
 
-Write specific, measurable outcomes with one behavior per criterion and unambiguous conditions.
+- user, problem, and observable outcome;
+- main journey with a concrete success example;
+- important failure, empty, or unknown state;
+- first-release inclusions and explicit deferrals;
+- acceptance criteria covering the primary journeys and material behavior/rules, without splitting them into implementation-sized fragments;
+- constraints, assumptions, proposed decisions, and decisions still needed.
 
-| Pattern | Form |
-|---------|------|
-| Ubiquitous | The system SHALL [behavior] |
-| Event-driven | WHEN [event] THEN the system SHALL [behavior] |
-| Conditional | IF [condition] THEN the system SHALL [behavior] |
-| Combined | WHEN [event] AND IF [condition] THEN the system SHALL [behavior] |
-| Optional | WHERE [feature included] the system SHALL [behavior] |
+Use plain language. Tasks cite stable acceptance IDs with `Criteria:`. Include positive and negative examples when both matter to the outcome.
 
-Cover functional behavior, relevant performance/security/accessibility constraints, error and boundary cases, and success criteria. Keep scope explicit; propose a separate spec for unrelated expansion.
+Label decisions `Confirmed`, `Proposed`, `Assumed`, `Open`, or `Deferred`. Product thresholds and time windows must be proposed or confirmed explicitly. Do not invent arbitrary latency, coverage, or quality targets.
 
-Present the draft with a coverage summary and apply the [planning approval gate](../SKILL.md#core-contract).
+For `evaluation`, keep the brief in the discussion or task-owned output. Do not create an executable plan in an example application, and do not treat prototype approval as implementation authority.
+
+Review requirements together with the experience/design direction and the executable plan for the agreed delivery scope by default. Separate requirements/design/tasks approval gates apply only when requested or already established.

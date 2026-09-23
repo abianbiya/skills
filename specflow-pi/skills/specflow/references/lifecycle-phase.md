@@ -1,59 +1,54 @@
-# Phase 5: Lifecycle
+# Lifecycle
 
-## Status and Legacy Layout
+## Status and legacy layout
 
-New specs use the flat [layout](../SKILL.md#directory-layout). `tasks.md` frontmatter status is authoritative: `active` for development, `completed` for implementation references, `archived` for obsolete or abandoned history. Before a new plan exists, treat the spec as active. Listing, resuming, and archiving are available before implementation finishes.
+Keep paths stable. For new flat specs, `tasks.md` frontmatter is authoritative and must contain `status: active`, `completed`, or `archived`. `gate: review` is optional and appears only while a real decision is pending. Discover older `specs/active|completed|archived/{feature}/` layouts; infer status from the legacy directory only when frontmatter is absent. Metadata takes precedence. Do not move, migrate, or silently relax existing specs.
 
-Older versions stored specs under `specs/active/`, `specs/completed/`, and `specs/archived/`. Discover both layouts; for legacy specs without status metadata, infer status from the containing directory. Metadata takes precedence if present. Update legacy specs in place without moving directories or migrating automatically. A flat spec with a task file but missing or invalid status needs clarification before a lifecycle write.
-
-Resolve names across both layouts, using actual paths to distinguish duplicates. Use the sole eligible spec if unambiguous; otherwise ask which spec. Report missing specs or already-achieved states without changing anything.
+A flat executable spec with missing or malformed lifecycle metadata is unknown and not runnable until corrected. A metadata-only `tasks.md` may record a pending review/evaluation and is not an approved task plan.
 
 ## Complete
 
-On an explicit completion request, verify the active spec's tasks are all checked and their completion is backed by [execution validation](execution-phase.md#validation). Unchecked or unvalidated work blocks completion; report what remains. This command does not implement tasks or check boxes on the user's behalf.
+When all tasks authorized by a whole-plan approval are done, verify the selected delivery target's agreed evidence and provide the final handoff; then mark the plan `completed` without waiting for a separate completion request. If only a task or bounded range was authorized, do not mark the whole plan completed.
 
-Report the changed files and the checks those tasks ran before setting the metadata; a readiness report on its own never completes a spec.
-
-Set completion metadata in place. Confirm the spec path, status, and completion date. Completed specs remain available as reference documentation.
+A prototype may complete as a prototype, never as an operational product. For an MVP, passing automated checks without the real main journey is insufficient. Record owner acceptance separately: it may be pending after the user receives access and try instructions, unless the approved plan explicitly makes owner review a required blocking task. Report blockers without checking work on the user's behalf. Set completion metadata only when evidence supports it; include the delivered target, outcome, handoff path, and limitations. Do not infer deployment or publication authority.
 
 ## Archive
 
-On an archive request, set archive metadata on an active or completed spec in place. Use the user's reason if supplied; otherwise ask and wait for it. Confirm the spec path, status, reason, and archive date.
-
-Archive rather than delete specs. Preserve all documents and historical metadata; lifecycle transitions do not move directories. Verify metadata after writing and report failures. Archived specs can be referenced but not modified.
+On request, archive in place with the user's reason. Preserve documents and metadata. Archived specs are history and are not edited or executed.
 
 ## Metadata
 
-Store lifecycle metadata in YAML frontmatter at the top of `tasks.md`, preserving unrelated fields and body. For an early archive with no task file, create a metadata-only `tasks.md`; this is not an approved implementation plan.
+Use this frontmatter for new flat executable specs:
+
+```yaml
+---
+status: active
+gate: review
+---
+```
+
+Rules:
 
 | Field | Rule |
-|-------|------|
-| status | Set `active` when creating a plan; preserve existing status on plan edits; set `completed` or `archived` only through the corresponding transition |
-| gate | Only defined value is `review`: set when stopping for a review in any phase (planning documents and every Phase 4 per-task stop); clear when approval to resume is received |
-| created_at | Preserve if present; record only if the creation date is known |
-| completed_at | Set to today's ISO date (YYYY-MM-DD) on completion; preserve on later archive |
-| archived_at | Set to today's ISO date on archive |
-| archive_reason | User-supplied reason, required on archive |
+|---|---|
+| `status` | Required for new flat executable specs; `active`, `completed`, or `archived` |
+| `gate` | `review` only while an actual decision is pending; otherwise omit |
+| `created_at` | Preserve or write only when known |
+| `completed_at` | ISO date on completion; preserve on archive |
+| `archived_at` | ISO date on archive |
+| `archive_reason` | User-supplied reason when archiving |
 
-Use status resolution above for legacy plans. A metadata-only task file is not evidence of planning approval.
+Keep the effective settings, approval scope, validation boundary, evidence, limitations, and pending decision in the `Approval` section. A gate badge signals a decision, not permission to implement. Clear it only after that decision is recorded.
 
-## List
+## List and resume
 
-Show specs grouped by active/completed/archived, or restrict to the requested status. Task counts, lifecycle dates, and archive reasons may supplement names. Distinguish executable-task progress from parent group checkboxes when reporting counts.
+List by status with coding progress and acceptance state distinguished. On resume:
 
-## Resume
+- intent unclear → staged interview appropriate to new-app discovery or existing-project evidence;
+- experience unclear → concrete reference;
+- scope/settings/evidence undecided → compact review packet;
+- implementation authorized → continue the whole approved plan or the next authorized bounded task/range;
+- coding done but acceptance incomplete → demonstrate the missing boundary;
+- coding and authorized handoff complete → mark completed when the selected target's evidence supports it; record owner acceptance separately, even if pending.
 
-Locate the active spec and determine progress from documents plus known approvals, not file existence alone. If approval is unknown, request review of the relevant document before advancing.
-
-| State | Route |
-|-------|-------|
-| No requirements | Phase 1: [Requirements](requirements-phase.md) |
-| Requirements awaiting approval | Phase 1 review |
-| Requirements approved; design missing or awaiting approval | Phase 2: [Design](design-phase.md) / review |
-| Design approved; tasks missing or awaiting approval | Phase 3: [Tasks](tasks-phase.md) / review |
-| All three approved, work remains | Phase 4: [Execution](execution-phase.md), default next task |
-| All tasks validated and checked | Report readiness for Complete; await explicit completion request |
-
-Reconcile recorded gate state on resume: a `gate: review` field that no longer matches a pending review — for example one left behind by an interrupted session — must be cleared.
-
-Report the current phase, progress if available, and next action. Let the selected phase load its relevant context; resumption does not itself mandate full-document re-reading.
+Reuse approvals; do not request them again merely because a session restarted. A resumed evaluation remains evaluation work, not authority to build its example project.

@@ -1,55 +1,32 @@
-# Phase 4: Execution
+# Execution: deliver and demonstrate
 
-## Session Context
+Read project context, selected settings, and the relevant requirements/design/tasks once at the start. Confirm assignment mode, actual implementation target, approved plan baseline, included/excluded scope, and authorization. Existing specs retain their recorded boundaries until reconciled.
 
-Identify the active spec and verify the [planning approvals](../SKILL.md#core-contract). Project context must exist; all three planning documents must be approved.
+If the user approved all in-scope tasks in a whole-app plan, execute the complete plan in dependency order through final integration and handoff. Do not stop for new approval at each task or milestone; milestones are progress checkpoints within that authorization. Report progress without requiring the user to resume routine work. If authorization names a task/range or only a first slice, stay within that boundary. A task picker request authorizes only the selected task unless the Approval section already grants broader scope. `review_cadence` sets progress/reporting checkpoints inside authorized work; it never expands scope or requires reapproval by itself.
 
-At the start of an execution session, read `.specflow/project.md` and the feature's `requirements.md`, `design.md`, and `tasks.md` in full once. Load referenced completed-spec context only where relevant. Retain the requirement mapping, design structure, task order/dependencies, and project conventions in session context.
+Use approved decisions and assumptions. Record low-risk reversible implementation choices with a short reason. If evidence requires a change to user outcome, scope, approved experience, cost, compatibility, privacy/security posture, or material risk, pause only the affected work, present the evidence and smallest options, and request a focused decision. Continue independent authorized work where safe. Do not turn an open plan question into an unapproved consequential decision. Evaluation mode never edits the example application.
 
-An execution session spans successive task requests for the same spec while that context remains available. A user-review pause does not start a new session. If context is lost or a different spec is selected, establish the full baseline again. If files change, refresh affected sections and dependencies; changes to approved planning content must pass the root approval gates before execution resumes.
-
-## Task Scope and Delta Reads
-
-For “execute next task,” select the first unchecked task in listed order whose declared dependencies are validated and integrated. For a specified task, verify that it is unchecked and its dependencies are complete. An explicit range such as “execute tasks 1.1–1.4” or list authorizes those tasks only, in dependency order, sequentially by default; do not silently add prerequisites or expand the range. Skip already checked tasks and report them as skipped.
-
-For each task after the baseline, load only:
-
-- Its current unchecked task line and scope/reference sub-bullets, plus dependency or parent status needed to select it.
-- The referenced requirement IDs and their acceptance criteria, using the [ID convention](requirements-phase.md#document-content).
-- The design sections it touches, including relevant shared interfaces and constraints.
-
-Reuse unchanged project and broader spec context; do not reload entire documents per task. Resolve unclear scope from these excerpts before asking the user. Missing IDs, unmet dependencies, or remaining ambiguity block execution of that task.
-
-Implement within this scope using the approved design and project conventions. Requirements and design are read-only during execution; route needed changes to their planning phase. Clarified task wording may be updated without silently changing approved scope.
-
-## Parallel Execution (Optional)
-
-Use subagents only within an explicitly authorized batch, when the user permits delegation and the harness supports it. Otherwise follow the same dependency flow sequentially. Only ready tasks with no dependency between them may run together.
-
-The parent assigns bounded task scopes, relevant context excerpts, and file ownership. Use disjoint files where shared-tree parallel writers are permitted; otherwise use separate worktrees or run sequentially. Account for shared interfaces, generated files, and mutable test resources as well as dependency edges. Follow harness limits and repository delegation rules.
-
-Children implement and return changes plus validation evidence; the parent owns integration, final validation, and `tasks.md` updates. A child report alone does not complete a task. Integrate and validate prerequisite results before launching dependents.
-
-On an unresolved failure, stop dispatching new tasks, safely pause or collect already-running work, preserve edits, and report completed, failed, and unstarted tasks. Do not start dependents of failed work.
+After each demonstrable increment, update task status, evidence, and dependencies, then continue the remaining approved plan. Keep planned verification distinct from observed evidence and name any checks still unperformed. Reorder or split work when implementation evidence requires it, keeping acceptance IDs and user-visible scope stable. If a planned task becomes unnecessary or impossible, record why and revise the plan within the approved outcome; seek a decision only when the change crosses the boundaries above.
 
 ## Validation
 
-Before changing a task checkbox, verify all three levels:
+Choose the smallest meaningful checks for changed behavior and the assurance level while respecting repository requirements:
 
-| Level | Evidence required |
-|-------|-------------------|
-| Requirements | Every referenced acceptance criterion passes, including its specified edge, error, and success cases. A whole-requirement reference includes all its criteria. |
-| Design | Touched components/layers, schemas and relationships, interfaces, API behavior, error handling, and state management match the approved design. |
-| Quality | Tests for new testable logic cover normal and error paths; project tests, lint, and applicable type checks pass; functionality runs without errors or warnings. Find commands in project context or repository configuration. |
+- **Engineering:** changed logic, important failure modes, authorization, secret handling, and applicable data integrity/idempotency.
+- **Integration:** normal user path with real dependencies; identify fixtures, bypasses, unavailable services, and untested environments.
+- **Experience:** compare realistic content and primary interactions with the approved reference; inspect unknown/error states.
+- **Owner acceptance:** record the user's response separately from automated success.
 
-If a task cannot independently satisfy its referenced criteria, resolve the task/spec mismatch through planning rather than claiming partial validation as a pass. If checks fail, fix within the authorized task and revalidate. If blocked or unable to run required checks, leave it unchecked, report the evidence and resolution options, and stop for user guidance. For a parallel batch, apply the failure handling above.
+At level 1–2, always cover the main journey and applicable truthful-state, access, secret, and integrity risks. Do not add unrelated compatibility/load/concurrency suites merely because the level exists. For `mvp`, demonstrate one narrow real journey early. A prototype with fixtures cannot count as MVP integration.
 
-Only after all levels pass, change that task from `- [ ]` to `- [x]`. Complete children before checking a parent; check the parent's own scope too. In sequential execution, validate and update each task before starting the next; parallel execution follows the integration rules above.
+Check a task only when its own scope and named validation pass. Keep milestone evidence distinct from whole-plan completion; do not claim the app is integrated until the complete normal path works. Do not weaken meaningful assertions or chase unrelated failures. Report unavailable checks honestly. Owner acceptance is recorded separately; it is not a reason to leave already authorized implementation and handoff tasks unfinished.
 
-For “validate implementation,” apply these same levels to the requested scope (the whole implementation if unspecified), using the session/delta context rules. Report findings without implementing fixes or changing checkboxes unless requested.
+## Demonstration and handoff
 
-## Report and Stop
+When all authorized work is complete, refresh `project.md` with the implemented app brief, verified foundations, actual run/check commands, and current spec index. Provide a usable handoff so the user can access and try the app. Include only what applies: prerequisites, start/run command, URL or entry point, safe sample data/account setup (never disclose secrets), the main journey and important states to inspect, checks and environments actually exercised, limitations/unverified integrations, and how to stop/reset local data. Record owner acceptance as pending if the user has not tried it. Do not wait for a separate `complete` command to report completion and provide these instructions. Do not infer deployment or publication authority.
 
-Report task IDs and outcomes, changed files, requirement/criterion evidence, design conformance, checks run and results, and any blockers or remaining work. For a batch, give one consolidated report with per-task results, including skipped or unexecuted tasks.
+For read-only validation, report evidence without fixes or checkbox changes unless authorized. Completed coding tasks alone do not establish product completion.
 
-Stop after the default single task or the explicitly authorized batch and wait for the user before further execution. When all tasks are checked, report readiness for the explicit [complete spec](lifecycle-phase.md#complete) action; do not change its lifecycle status automatically.
+## Orchestration
+
+Use serial execution when work is dependent, changes shared contracts/files, includes schema or migration work, or needs an integration decision first. Parallelize only tasks that are independent in the plan and have clear, non-overlapping ownership and inputs. Use subagents only when the host supports them and delegation is within the approved scope; assign each a bounded task, files/modules, acceptance criteria, and required evidence. The parent coordinates dependencies, reviews results, resolves conflicts, integrates, and owns final validation and handoff. A child report is not completion evidence. If delegation is unavailable or adds coordination risk, execute serially without changing the approved outcome.

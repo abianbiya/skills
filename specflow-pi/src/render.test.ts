@@ -361,11 +361,17 @@ describe("taskOptions (AC7)", () => {
 });
 
 describe("actionOptions (AC6)", () => {
+	test("retired specs do not offer configuration changes", () => {
+		for (const status of ["completed", "archived"] as const) {
+			expect(actionOptions(spec({ status }), false).some((option) => option.action === "settings")).toBe(false);
+		}
+	});
 	test("offers execute, validate, document and toggle for a running spec", () => {
 		const s = spec({ tasks: [task("1.1")], total: 1 });
 		expect(actionOptions(s, false)).toEqual([
 			{ label: "Execute a task…", action: "execute" },
 			{ label: "Validate implementation", action: "validate" },
+			{ label: "Workflow settings…", action: "settings" },
 			{ label: "Open document…", action: "document" },
 			{ label: "Hide panel", action: "toggle" },
 		]);
@@ -374,19 +380,31 @@ describe("actionOptions (AC6)", () => {
 	test("adds approve only when a gate is pending", () => {
 		const gated = spec({ tasks: [task("1.1")], total: 1, gate: "review", phase: 3 });
 		expect(actionOptions(gated, true).map((a) => a.action)).toEqual([
-			"execute",
 			"approve",
 			"validate",
+			"settings",
 			"document",
 			"toggle",
 		]);
 		expect(actionOptions(gated, true).at(-1)?.label).toBe("Show panel");
 	});
 
+	test("unknown or malformed lifecycle state offers no execute or approve action", () => {
+		for (const invalid of [
+			spec({ status: "unknown", error: "tasks.md requires status", tasks: [task("1.1")], total: 1 }),
+			spec({ status: "active", error: "tasks.md has invalid gate metadata", tasks: [task("1.1")], total: 1 }),
+		]) {
+			const actions = actionOptions(invalid, false).map((a) => a.action);
+			expect(actions).not.toContain("execute");
+			expect(actions).not.toContain("approve");
+		}
+	});
+
 	test("hides execute and validate when there is no task work", () => {
-		expect(actionOptions(spec({ total: 0 }), false).map((a) => a.action)).toEqual(["document", "toggle"]);
+		expect(actionOptions(spec({ total: 0 }), false).map((a) => a.action)).toEqual(["settings", "document", "toggle"]);
 		expect(actionOptions(spec({ tasks: [task("1.1", true)], done: 1, total: 1 }), false).map((a) => a.action)).toEqual([
 			"validate",
+			"settings",
 			"document",
 			"toggle",
 		]);
@@ -413,6 +431,11 @@ describe("renderWidgetLines with the cockpit rows (AC4, AC5)", () => {
 		const lines = renderWidgetLines(s, 90, 6, truncate, plainStyler);
 		expect(lines).toHaveLength(4);
 		expect(lines.some((l) => l.includes("⚠"))).toBe(false);
+	});
+
+	test("metadata errors are visible in the warning row", () => {
+		const lines = renderWidgetLines(spec({ tasks: [task("1.1")], total: 1, error: "requires YAML frontmatter" }), 90, 6, truncate, plainStyler);
+		expect(lines.at(-1)).toContain("metadata/error");
 	});
 
 	test("a requirements-only spec keeps the three base rows", () => {

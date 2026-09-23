@@ -1,48 +1,64 @@
 ---
 name: specflow
-description: "Plan and implement features through approved requirements, design, and tasks. Use for spec-driven development with explicit review gates and validated execution."
+description: "Plan and build around demonstrated outcomes, with staged app discovery, executable scoped plans, concrete experience reviews, configurable assurance, and iterative delivery."
 ---
 
 # SpecFlow
 
-## Core Contract
+## Core contract
 
-Work through Phase 1 (Requirements), Phase 2 (Design), Phase 3 (Tasks), then Phase 4 (Execution). Present each planning document for review and obtain explicit approval before advancing; revise and seek approval again after feedback. Existing files alone are not approval. When updating an earlier phase, reconcile affected downstream documents through the same gates before execution.
+Establish the intended outcome, show a concrete example, agree on the delivery boundary, plan executable work for the approved scope, then build incrementally and demonstrate the result. The first useful slice is the first iteration, not a substitute for planning the rest of a requested app. Requirements, design, and tasks support that loop; document volume and passing tests are not measures of product success.
 
-Phase 4 defaults to one task, followed by a report and a stop for user review. Only an explicitly requested task range or list authorizes a batch. Phase 5 manages completion, archiving, listing, and resumption; it is not an additional planning gate.
+Before creating files, classify the assignment: `implementation`, `planning`, `prototype`, or `evaluation` of this skill. A project used as an example does not become an implementation target. Approval applies only to the artifact and scope presented. Screen approval is not application-change authorization.
 
-Whenever work pauses for a review — a planning document or a Phase 4 task report — record `gate: review` in the spec's `tasks.md` frontmatter (create a metadata-only `tasks.md` when none exists) and clear the field once approval to resume is received.
+For a new application idea, use a staged discovery interview before writing its first spec. Cover project foundations, user outcomes and behavior, experience and technical design, then the first useful milestone and its evidence. Ask in manageable rounds, summarize decisions and open questions between rounds, and follow up until each relevant area is understood well enough to review. Comprehensive discovery does not mean every possible feature or technical option: mark irrelevant areas not applicable, and defer future or low-impact choices. A user may ask to shorten or skip a round.
 
-Load the relevant reference when entering a phase; reuse context already loaded and unchanged. Start the requested work without an unsolicited workflow explanation.
+For an existing project or a bounded feature, inspect the repository and interview only for context the evidence cannot establish. A new-app interview is not shortened by MVP delivery or low assurance settings. `assurance_level` governs verification, `delivery_target` defines intended delivery, and `planning_detail` governs how much explanation the documents contain; none is a discovery-depth limit.
 
-## Entry Points
+Resolve [configuration](references/configuration.md), then prepare requirements, design, and tasks from the interview. When the user asks for a complete new app at a delivery target, plan all agreed in-scope work as executable tasks across milestones; keep only deferred/out-of-target ideas as roadmap bullets. The default is one coherent review packet and one approval gate, not separate phase approvals. Use concise documents when requested, while retaining enough detail to make the approved scope executable.
 
-| User intent | Route / reference |
-|-------------|-------------------|
-| First spec / missing project.md | [Project setup](references/project-setup.md), then requested phase |
-| New feature / new spec / update requirements | [Phase 1: Requirements](references/requirements-phase.md) |
-| Grill me / ask me questions first / let's discuss this | [Phase 1: Grilling](references/requirements-phase.md#grilling-optional) |
-| Update design / grill the design / discuss architecture first | [Phase 2: Design](references/design-phase.md) |
-| Update tasks | [Phase 3: Tasks](references/tasks-phase.md) |
-| Execute a task / execute next task | [Phase 4: Execution](references/execution-phase.md) |
-| Execute tasks 1.1–1.4 / an explicit task list | [Phase 4: Execution](references/execution-phase.md) within that scope |
-| Execute an authorized batch in parallel | [Phase 4: Parallel execution](references/execution-phase.md#parallel-execution-optional) |
-| Validate implementation | [Phase 4: Validation](references/execution-phase.md#validation) |
-| Continue / resume spec | [Phase 5: Resume](references/lifecycle-phase.md#resume) to determine the current phase |
-| Complete spec / mark spec done | [Phase 5: Complete](references/lifecycle-phase.md#complete) |
-| Archive spec | [Phase 5: Archive](references/lifecycle-phase.md#archive) |
-| List / show specs, optionally by status | [Phase 5: List](references/lifecycle-phase.md#list) |
+For `evaluation`, use an isolated test directory or task-owned output, never the example application's `.specflow/`; do not create an executable checkbox plan; label evidence and stop at the evaluation decision. Evaluation approval never authorizes implementation.
 
-## Directory Layout
+Execute only the exact authorized plan, milestone, task, or range. A whole-plan approval can cover every listed in-scope task through final integration and user handoff; do not stop for new approval at each milestone. Demonstrate outcomes and distinguish engineering checks, real integration, experience review, and owner acceptance. Material changes to scope, experience, cost, compatibility, privacy/security, or risk return for focused review.
+
+When an actual decision is pending, put `gate: review` in YAML frontmatter at the top of `tasks.md` and state the decision and requested scope in the body. Distinguish the execution authority requested from the authority actually recorded after the user approves; before then, authorization is `none`. A gate is a decision marker, not execution permission. Preserve existing approved commitments until explicitly reconciled.
+
+## Routes
+
+Load only the relevant reference; reuse unchanged context.
+
+| Intent | Reference |
+|---|---|
+| New application / greenfield spec | [Project setup](references/project-setup.md), then [Requirements](references/requirements-phase.md), [Design](references/design-phase.md), and [Tasks](references/tasks-phase.md) in order |
+| Settings, assurance, scope, or evaluation mode | [Configuration](references/configuration.md) |
+| New feature, outcome brief, or interview | [Requirements](references/requirements-phase.md) |
+| Prototype, screen direction, or technical decisions | [Design](references/design-phase.md) |
+| Scope and executable task plan | [Tasks](references/tasks-phase.md) |
+| Implement or validate authorized work | [Execution](references/execution-phase.md) |
+| Resume, list, complete, or archive | [Lifecycle](references/lifecycle-phase.md) |
+| Missing shared context in an existing project | [Project setup](references/project-setup.md) |
+
+## Files
 
 ```text
 .specflow/
 ├── project.md
-└── specs/
-    └── {feature-name}/
-        ├── requirements.md
-        ├── design.md
-        └── tasks.md
+├── config.json                 # optional partial project preferences
+└── specs/{feature-name}/
+    ├── config.json             # optional partial per-spec overrides
+    ├── requirements.md         # short outcome brief
+    ├── design.md               # experience reference and necessary decisions
+    ├── tasks.md                # milestones, approvals, evidence, lifecycle
+    └── artifacts/              # optional references; never executable planning docs
 ```
 
-Use descriptive kebab-case feature names. Status lives in `tasks.md` frontmatter; paths stay stable. Older versions used `active/`, `completed/`, and `archived/` directories: preserve compatibility as described in [Lifecycle](references/lifecycle-phase.md#status-and-legacy-layout).
+New flat executable specs require `tasks.md` frontmatter:
+
+```yaml
+---
+status: active
+gate: review
+---
+```
+
+Use descriptive kebab-case names. Preserve older layouts and existing IDs as described in Lifecycle. Do not silently migrate or relax existing specs.
