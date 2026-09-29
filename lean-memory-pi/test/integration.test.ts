@@ -4,11 +4,11 @@ import * as fs from "node:fs/promises";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { tmpdir } from "node:os";
-import { join, resolve } from "node:path";
+import { basename, join, resolve } from "node:path";
 import type { ExtensionAPI, ExtensionContext, ToolDefinition } from "@earendil-works/pi-coding-agent";
 import leanMemory from "../index.ts";
 import { startPreview } from "../preview.ts";
-import { identifyProject, MemoryStore, SnapshotCache, today, type Project } from "../store.ts";
+import { identifyProject, MemoryStore, reviewIsDue, SnapshotCache, today, type Project } from "../store.ts";
 
 const exec = promisify(execFile);
 let temp: string;
@@ -31,32 +31,38 @@ before(async () => {
 });
 after(async () => { await fs.rm(temp, { recursive: true, force: true }); });
 
-function harness(cwd: string) {
+function harness(cwd: string, memoryStore = store) {
 	const old = process.env.LEAN_MEMORY_DIR;
-	process.env.LEAN_MEMORY_DIR = store.root;
+	process.env.LEAN_MEMORY_DIR = memoryStore.root;
 	const hooks = new Map<string, ((event: any, ctx: ExtensionContext) => any)[]>();
 	const tools = new Map<string, ToolDefinition<any, any>>();
 	const commands = new Map<string, { description?: string; handler: (args: string, ctx: any) => any }>();
+	const sentMessages: { content: unknown; options?: unknown }[] = [];
+	let activeTools = ["memory_write", "memory_read", "scratchpad", "memory_search", "memory_forget", "memory_restore", "memory_status", "bash", "edit", "write"];
 	try {
 		leanMemory({
 			on(name, fn) { hooks.set(name, [...(hooks.get(name) ?? []), fn]); },
 			registerTool(tool) { tools.set(tool.name, tool); },
 			registerCommand(name, options) { commands.set(name, options); },
+			sendUserMessage(content, options) { sentMessages.push({ content, options }); },
+			getActiveTools() { return [...activeTools]; },
+			setActiveTools(names) { activeTools = [...names]; },
 		} as ExtensionAPI);
 	} finally {
 		if (old === undefined) delete process.env.LEAN_MEMORY_DIR;
 		else process.env.LEAN_MEMORY_DIR = old;
 	}
-	const ctx = { cwd, hasUI: false } as ExtensionContext;
+	const ctx = { cwd, hasUI: false, waitForIdle: async () => {} } as unknown as ExtensionContext;
 	return {
-		ctx, hooks, tools, commands,
-		async emit(name: string, event: any = {}) {
+		ctx, hooks, tools, commands, sentMessages,
+		activeToolNames: () => [...activeTools],
+		async emit(name: string, event: any = {}, target: ExtensionContext = ctx) {
 			let result;
-			for (const fn of hooks.get(name) ?? []) result = await fn(event, ctx);
+			for (const fn of hooks.get(name) ?? []) result = await fn(event, target);
 			return result;
 		},
-		async call(name: string, params: any) {
-			return tools.get(name)!.execute("test", params, undefined, undefined, ctx);
+		async call(name: string, params: any, target: ExtensionContext = ctx) {
+			return tools.get(name)!.execute("test", params, undefined, undefined, target);
 		},
 		async prompt(target: ExtensionContext = ctx) {
 			let result;
@@ -75,6 +81,68 @@ test("identity: canonical repo root, nested cwd, symlink alias and same-name rep
 	await fs.symlink(a.root, join(temp, "alias"), "dir");
 	assert.deepEqual(await identifyProject(join(a.root, "nested")), a);
 	assert.deepEqual(await identifyProject(join(temp, "alias")), a);
+});
+
+test("review metadata is scoped, validated, and excluded from memory content", async () => {
+	const isolated = new MemoryStore(join(temp, "review-memory"));
+	const project: Project = { root: join(temp, "future-project"), id: "1".repeat(64) };
+	const location = isolated.location("project", project);
+	const reviewedAt = "2026-09-01T12:00:00.000Z";
+	assert.equal(await isolated.hasReviewableContent(location), false);
+	assert.equal(await isolated.lastReviewedAt(location), undefined);
+	await isolated.write(location, "long_term", "REVIEWABLE_FACT");
+	assert.equal(await isolated.hasReviewableContent(location), true);
+	assert.ok(!(await isolated.files(location)).files.includes("REVIEW.json"));
+	assert.deepEqual((await isolated.search([location], "lastReviewedAt")).results, []);
+	await isolated.markReviewed(location, reviewedAt);
+	assert.equal(await isolated.lastReviewedAt(location), reviewedAt);
+	assert.ok(!(await isolated.snapshot(project)).includes("REVIEW.json"));
+	assert.ok(!(await isolated.snapshot(project)).includes(reviewedAt));
+	assert.equal(reviewIsDue(undefined, Date.parse(reviewedAt)), true);
+	assert.equal(reviewIsDue(reviewedAt, Date.parse(reviewedAt) + 30 * 24 * 60 * 60 * 1000 - 1), false);
+	assert.equal(reviewIsDue(reviewedAt, Date.parse(reviewedAt) + 30 * 24 * 60 * 60 * 1000), true);
+	const global = isolated.location("global");
+	assert.equal(await isolated.lastReviewedAt(global), undefined, "project review does not mark global reviewed");
+	await fs.writeFile(join(location.dir, "REVIEW.json"), "{ malformed");
+	await assert.rejects(isolated.lastReviewedAt(location), /Invalid review metadata/);
+	await assert.rejects(isolated.markReviewed(location, "2026-09-02T12:00:00.000Z"), /Invalid review metadata/);
+	assert.equal(await fs.readFile(join(location.dir, "REVIEW.json"), "utf8"), "{ malformed", "malformed metadata is preserved");
+	const linkedProject: Project = { root: join(temp, "linked-project"), id: "2".repeat(64) };
+	const linkedLocation = isolated.location("project", linkedProject);
+	await fs.mkdir(linkedLocation.dir, { recursive: true });
+	await fs.writeFile(join(temp, "outside-review.json"), JSON.stringify({ version: 1, lastReviewedAt: reviewedAt }));
+	await fs.symlink(join(temp, "outside-review.json"), join(linkedLocation.dir, "REVIEW.json"));
+	await assert.rejects(isolated.lastReviewedAt(linkedLocation), /symlink/);
+	await assert.rejects(isolated.markReviewed(linkedLocation, reviewedAt), /symlink/);
+	const blockedLocation = isolated.location("project", { root: join(temp, "blocked-project"), id: "3".repeat(64) });
+	await fs.mkdir(join(blockedLocation.dir, "REVIEW.json"), { recursive: true });
+	await assert.rejects(isolated.markReviewed(blockedLocation, reviewedAt), /not a regular file/);
+	assert.equal((await fs.stat(join(blockedLocation.dir, "REVIEW.json"))).isDirectory(), true, "failed metadata writes preserve the blocking entry");
+});
+
+test("project inventory includes only real hash-named folders and safe Markdown files", async () => {
+	const isolated = new MemoryStore(join(temp, "inventory-memory"));
+	const id = "a".repeat(64);
+	const projects = join(isolated.root, "projects");
+	const directory = join(projects, id);
+	await fs.mkdir(join(directory, "daily"), { recursive: true });
+	await fs.mkdir(join(directory, "topics"), { recursive: true });
+	await fs.mkdir(join(directory, "recovery"), { recursive: true });
+	await fs.writeFile(join(directory, "MEMORY.md"), "VISIBLE_FACT");
+	await fs.writeFile(join(directory, "daily", "2026-09-28.md"), "VISIBLE_DAILY");
+	await fs.writeFile(join(directory, "topics", "guide.md"), "VISIBLE_TOPIC");
+	await fs.writeFile(join(directory, "recovery", "backup.md"), "HIDDEN_RECOVERY");
+	await fs.writeFile(join(directory, ".hidden.md"), "HIDDEN_FILE");
+	await fs.writeFile(join(directory, "ignored.txt"), "NOT_MARKDOWN");
+	await fs.symlink(join(directory, "MEMORY.md"), join(directory, "topics", "linked.md"));
+	await fs.mkdir(join(projects, "not-a-project"));
+	await fs.symlink(directory, join(projects, "b".repeat(64)), "dir");
+	assert.deepEqual(await isolated.projectIds(), [id]);
+	const location = isolated.location("project", { id, root: "" });
+	assert.deepEqual((await isolated.files(location)).files, ["daily/2026-09-28.md", "MEMORY.md", "topics/guide.md"]);
+	assert.equal(await isolated.readListedFile(location, "topics/guide.md"), "VISIBLE_TOPIC");
+	await assert.rejects(isolated.readListedFile(location, "recovery/backup.md"), /not available/);
+	await assert.rejects(isolated.readListedFile(location, "../../outside"), /not available/);
 });
 
 test("inherited Git routing cannot select another project's memory", async () => {
@@ -107,7 +175,7 @@ test("non-Git/bare directories are global-only; explicit roots must contain cwd"
 test("project facts, scratchpad and daily logs are isolated; only explicit globals cross projects", async () => {
 	const ha = harness(a.root);
 	assert.equal(ha.tools.size, 7);
-	assert.equal(ha.hooks.has("session_shutdown"), false, "no automatic LLM summaries into the wrong scope");
+	assert.equal(ha.hooks.has("session_shutdown"), true, "shutdown cleanup restores any temporary review tool set");
 	await ha.call("memory_write", { target: "long_term", content: "PROJECT_A_PRIVATE" });
 	await ha.call("memory_write", { target: "daily", content: "PROJECT_A_HISTORY" });
 	await ha.call("scratchpad", { action: "add", text: "PROJECT_A_TASK" });
@@ -126,6 +194,105 @@ test("project facts, scratchpad and daily logs are isolated; only explicit globa
 	assert.ok(!text(await hb.call("memory_search", { query: "PROJECT_A_HISTORY" })).includes("PROJECT_A_HISTORY"));
 	assert.ok(text(await ha.call("memory_search", { query: "PROJECT_A_HISTORY" })).includes("PROJECT_A_HISTORY"));
 	assert.ok(text(await hb.call("memory_search", { query: "UNIVERSAL_SAFEGUARD" })).includes("UNIVERSAL_SAFEGUARD"));
+});
+
+test("/memory review is user-initiated, scope-captured, and never edits notes", async () => {
+	const isolated = new MemoryStore(join(temp, "review-command-memory"));
+	const h = harness(a.root, isolated);
+	await h.call("memory_write", { target: "long_term", content: "PROJECT_REVIEW_FACT" });
+	await h.call("scratchpad", { action: "add", text: "PROJECT_REVIEW_TASK" });
+	await h.call("memory_write", { scope: "global", target: "long_term", content: "GLOBAL_REVIEW_FACT" });
+	await h.call("memory_write", { target: "long_term", content: "PROJECT_B_REVIEW_FACT" }, { ...h.ctx, cwd: b.root });
+	const projectMemory = await isolated.read(isolated.location("project", a), "MEMORY.md");
+	const globalMemory = await isolated.read(isolated.location("global"), "MEMORY.md");
+	const notices: string[] = [];
+	const uiCtx = { ...h.ctx, hasUI: true, ui: { notify: (message: string) => notices.push(message) } } as any;
+	await h.emit("session_start", {}, uiCtx);
+	assert.equal(notices.length, 1, "due global and project scopes share one reminder");
+	assert.match(notices[0], /global memory.*api project memory/);
+	assert.equal(h.sentMessages.length, 0, "a due reminder does not call the model");
+	await h.prompt(uiCtx);
+	assert.equal(notices.length, 1, "the reminder is not repeated in the same session");
+
+	const command = h.commands.get("memory")!;
+	await command.handler("review", uiCtx);
+	assert.equal(h.sentMessages.length, 1, "only the explicit command starts a review turn");
+	const request = h.sentMessages[0];
+	assert.match(request.content as string, /only the Lean Memory facts and open tasks/);
+	assert.match(request.content as string, /review turn has no tools/);
+	assert.ok(!(request.content as string).includes("PROJECT_REVIEW_FACT"), "the already-injected notes are not duplicated in the user message");
+	assert.equal((request.options as any).deliverAs, "followUp");
+	assert.deepEqual(h.activeToolNames(), [], "all tools are disabled during the review turn");
+	assert.equal(await isolated.lastReviewedAt(isolated.location("global")), undefined, "requesting advice alone does not mark review complete");
+	await h.emit("agent_end");
+	assert.ok(h.activeToolNames().includes("memory_write"), "the prior tool set is restored after review");
+
+	const reviewLink = join(isolated.location("project", a).dir, "REVIEW.json");
+	const blockedMetadata = join(temp, "blocked-review.json");
+	await fs.writeFile(blockedMetadata, "external marker");
+	await fs.symlink(blockedMetadata, reviewLink);
+	uiCtx.cwd = b.root; // completion still marks the captured project A, not the new cwd
+	await command.handler("review done", uiCtx);
+	assert.ok(await isolated.lastReviewedAt(isolated.location("global")));
+	await assert.rejects(isolated.lastReviewedAt(isolated.location("project", a)), /symlink/);
+	assert.ok(notices.some(message => message.includes("Could not save review date for api project memory")));
+	await fs.unlink(reviewLink);
+	await command.handler("review done", uiCtx);
+	assert.ok(await isolated.lastReviewedAt(isolated.location("project", a)));
+	assert.equal(await isolated.lastReviewedAt(isolated.location("project", b)), undefined);
+	assert.equal(await isolated.read(isolated.location("project", a), "MEMORY.md"), projectMemory);
+	assert.equal(await isolated.read(isolated.location("global"), "MEMORY.md"), globalMemory);
+	assert.ok(notices.some(message => message.includes("Memory contents were not changed")));
+	await command.handler("review done", uiCtx);
+	assert.ok(notices.some(message => message.includes("no pending memory review")));
+	uiCtx.cwd = b.root;
+	await h.prompt(uiCtx);
+	assert.equal(notices.filter(message => message.includes("Memory review due")).length, 2, "entering another project checks its own review state");
+	assert.equal(await isolated.lastReviewedAt(isolated.location("project", b)), undefined);
+});
+
+test("empty scopes stay quiet until reviewable memory is written", async () => {
+	const isolated = new MemoryStore(join(temp, "review-empty-memory"));
+	const h = harness(a.root, isolated);
+	const notices: string[] = [];
+	const uiCtx = { ...h.ctx, hasUI: true, ui: { notify: (message: string) => notices.push(message) } } as any;
+	await h.emit("session_start", {}, uiCtx);
+	assert.equal(notices.length, 0, "empty global/project scopes are not due for review");
+	await h.call("memory_write", { target: "long_term", content: "NEW_REVIEWABLE_FACT" }, uiCtx);
+	await h.prompt(uiCtx);
+	assert.equal(notices.length, 1, "the scope is checked after it gains reviewable content");
+	assert.match(notices[0], /Memory review due/);
+});
+
+test("/memory review falls back to global-only when project identity is unknown", async () => {
+	const isolated = new MemoryStore(join(temp, "review-global-only"));
+	const h = harness(nonGit, isolated);
+	await h.call("memory_write", { scope: "global", target: "long_term", content: "GLOBAL_ONLY_REVIEW_FACT" });
+	const notices: string[] = [];
+	const uiCtx = { ...h.ctx, hasUI: true, ui: { notify: (message: string) => notices.push(message) } } as any;
+	await h.emit("session_start", {}, uiCtx);
+	assert.equal(notices.length, 1);
+	assert.match(notices[0], /global memory/);
+	assert.doesNotMatch(notices[0], /project memory/);
+	await h.commands.get("memory")!.handler("review", uiCtx);
+	await h.emit("agent_end");
+	await h.commands.get("memory")!.handler("review done", uiCtx);
+	assert.ok(await isolated.lastReviewedAt(isolated.location("global")));
+	assert.equal(await isolated.projectIds().then(ids => ids.length), 0);
+});
+
+test("review reminders are silent without UI, but explicit review still works", async () => {
+	const isolated = new MemoryStore(join(temp, "review-no-ui-memory"));
+	const h = harness(a.root, isolated);
+	await h.call("memory_write", { target: "long_term", content: "HEADLESS_REVIEW_FACT" });
+	await h.emit("session_start");
+	assert.equal(h.sentMessages.length, 0, "session startup never schedules a model review");
+	assert.equal(await isolated.lastReviewedAt(isolated.location("project", a)), undefined);
+	await h.commands.get("memory")!.handler("review", h.ctx);
+	assert.equal(h.sentMessages.length, 1, "an explicit review command remains user-initiated in no-UI mode");
+	assert.deepEqual(h.activeToolNames(), [], "mutation tools are still disabled for an explicit headless review");
+	await h.emit("agent_end");
+	assert.ok(h.activeToolNames().includes("memory_write"));
 });
 
 test("old mixed MEMORY.md, scratchpad, topics and logs are never auto-read or searched", async () => {
@@ -214,9 +381,24 @@ test("browser preview is loopback-only, token-gated, and carries no content in i
 	await assert.rejects(fetch(preview.url), "the socket is gone after close");
 });
 
-test("/memory html serves this scope over loopback and /memory close stops it", async () => {
+test("/memory html browses all scopes, actual injection, fresh previews, and safe files", async () => {
 	const h = harness(a.root);
 	await h.call("memory_write", { target: "long_term", content: "FACT_FOR_HTML" });
+	await h.call("memory_write", { scope: "global", target: "long_term", content: "GLOBAL_FOR_HTML" });
+	await h.call("scratchpad", { action: "add", text: "TASK_FOR_HTML" });
+	await store.write(store.location("project", b), "long_term", "FACT_FOR_OTHER_PROJECT");
+	await fs.mkdir(join(store.location("project", a).dir, "topics"), { recursive: true });
+	await fs.writeFile(join(store.location("project", a).dir, "topics", "guide.md"), "TOPIC_FOR_HTML");
+	await fs.mkdir(join(store.location("project", a).dir, "daily"), { recursive: true });
+	await fs.writeFile(join(store.location("project", a).dir, "daily", "2026-09-28.md"), "DAILY_FOR_HTML");
+	await fs.mkdir(join(store.location("project", a).dir, "recovery"), { recursive: true });
+	await fs.writeFile(join(store.location("project", a).dir, "recovery", "secret.json"), "RECOVERY_FOR_HTML");
+	const legacyId = "f".repeat(64);
+	const legacyDirectory = join(store.root, "projects", legacyId);
+	await fs.mkdir(legacyDirectory, { recursive: true });
+	await fs.writeFile(join(legacyDirectory, "MEMORY.md"), "LEGACY_PROJECT_WITHOUT_LABEL");
+	const beforeMemory = await fs.readFile(join(store.location("project", a).dir, "MEMORY.md"), "utf8");
+	const beforeGlobal = await fs.readFile(join(store.location("global").dir, "MEMORY.md"), "utf8");
 	const command = h.commands.get("memory")!;
 	const notices: string[] = [];
 	const statuses: (string | undefined)[] = [];
@@ -229,12 +411,60 @@ test("/memory html serves this scope over loopback and /memory close stops it", 
 		assert.ok(url, "the loopback URL is announced");
 		assert.ok(statuses.some(status => status?.includes("127.0.0.1")), "status shows the port");
 		const parsed = new URL(url);
-		assert.ok((await (await fetch(url)).text()).includes("Lean Memory"));
-		const data: any = await (await fetch(`http://127.0.0.1:${parsed.port}/data?token=${parsed.searchParams.get("token")}`)).json();
-		assert.ok(data.entries.some((entry: any) => entry.text.includes("FACT_FOR_HTML")), "the page serves this project's real entries");
+		const base = `http://127.0.0.1:${parsed.port}`;
+		const token = parsed.searchParams.get("token")!;
+		const shell = await (await fetch(url)).text();
+		assert.ok(shell.includes("Lean Memory"));
+		assert.ok(shell.includes("textContent"), "memory content is rendered as text");
+		const initial: any = await (await fetch(`${base}/data?token=${token}`)).json();
+		assert.ok(initial.projects.some((project: any) => project.id === a.id && project.active));
+		const otherProject = initial.projects.find((project: any) => project.id === b.id);
+		assert.ok(otherProject, "all stored projects are discoverable");
+		const projectOrder = (await store.projectIds()).indexOf(b.id) + 1;
+		assert.equal(otherProject.label, `api · saved ${projectOrder}`, "saved names disambiguate duplicate folder names");
+		assert.ok(!otherProject.label.includes(b.id), "project hashes are not shown");
+		assert.equal(initial.projects.find((project: any) => project.id === a.id).label, "api · current");
+		const legacyProject = initial.projects.find((project: any) => project.id === legacyId);
+		assert.match(legacyProject.label, /^Saved project \d+$/, "older scopes stay unnamed without migration");
+		assert.equal(await fs.readFile(join(legacyDirectory, "PROJECT.json")).catch(() => ""), "", "legacy scope receives no metadata write");
+		assert.ok(initial.global.files.includes("MEMORY.md"));
+		assert.equal(initial.actual, null, "the UI reports no actual injection before the first prompt");
+		assert.equal(await store.projectName(a), basename(a.root));
+		assert.ok(!(await store.files(store.location("project", a))).files.includes("PROJECT.json"));
+		const prompt = await h.prompt();
+		const expectedActual = prompt.slice("BASE".length);
+		const data: any = await (await fetch(`${base}/data?token=${token}`)).json();
+		assert.deepEqual(data.actual.text, expectedActual, "actual view captures exactly the extension-added prompt segment");
+		assert.equal(data.actual.label, basename(a.root));
+		assert.ok(!data.actual.label.includes(a.id), "project hashes are not shown in the actual label");
+		assert.ok(!data.actual.text.includes("BASE"), "the base system prompt is not exposed");
+		assert.ok(!data.actual.text.includes('"projectId"'), "name metadata is not injected into the prompt");
+		const file = await (await fetch(`${base}/file?token=${token}&scope=project&id=${a.id}&file=topics%2Fguide.md`)).json() as any;
+		assert.equal(file.text, "TOPIC_FOR_HTML");
+		const daily = await (await fetch(`${base}/file?token=${token}&scope=project&id=${a.id}&file=daily%2F2026-09-28.md`)).json() as any;
+		assert.equal(daily.text, "DAILY_FOR_HTML");
+		assert.ok(data.projects.find((project: any) => project.id === a.id).files.includes("daily/2026-09-28.md"));
+		assert.ok(!data.projects.find((project: any) => project.id === a.id).files.some((name: string) => name.includes("recovery")));
+		const simulation: any = await (await fetch(`${base}/context?token=${token}&id=${b.id}`)).json();
+		assert.ok(simulation.text.includes("FACT_FOR_OTHER_PROJECT") && simulation.text.includes("GLOBAL_FOR_HTML"));
+		assert.ok(!simulation.text.includes("FACT_FOR_HTML"), "simulation stays within the selected project plus global");
+		const activeSimulation: any = await (await fetch(`${base}/context?token=${token}&id=${a.id}`)).json();
+		assert.ok(activeSimulation.text.includes("TASK_FOR_HTML") && activeSimulation.text.includes("GLOBAL_FOR_HTML"));
+		assert.ok(!activeSimulation.text.includes("DAILY_FOR_HTML") && !activeSimulation.text.includes("TOPIC_FOR_HTML"));
+		assert.ok(activeSimulation.text.indexOf("### global facts") < activeSimulation.text.indexOf("### project facts"), "snapshot ordering matches injection");
+		assert.ok(!simulation.label.includes(b.id), "simulation labels do not expose project hashes");
+		assert.equal(simulation.characters, Array.from(simulation.text).length);
+		assert.equal(simulation.estimatedTokens, Math.ceil(Array.from(simulation.text).length / 4));
+		assert.equal((await fetch(`${base}/file?token=${token}&scope=project&id=invalid&file=MEMORY.md`)).status, 500);
+		const rejected = await fetch(`${base}/file?token=${token}&scope=project&id=${a.id}&file=..%2F..%2Foutside`);
+		assert.equal(rejected.status, 500);
+		assert.equal(await rejected.text(), "Memory read failed.", "validation errors never reveal filesystem paths");
+		assert.equal((await fetch(`${base}/data?token=${token}`, { method: "POST" })).status, 404, "the preview is GET-only");
 		await command.handler("close", ctx);
 		assert.equal(await fetch(url).catch(() => null), null, "close stops the socket");
 		assert.ok(notices.some(notice => notice.includes("stopped")));
+		assert.equal(await fs.readFile(join(store.location("project", a).dir, "MEMORY.md"), "utf8"), beforeMemory);
+		assert.equal(await fs.readFile(join(store.location("global").dir, "MEMORY.md"), "utf8"), beforeGlobal);
 	} finally { await command.handler("close", ctx); }
 });
 

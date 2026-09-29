@@ -1,6 +1,6 @@
 {
   "name": "@abianbiya/lean-memory",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Project-isolated memory for Pi: explicit global facts, per-worktree notes and tasks, scoped keyword search, and stable context snapshots. Uses Jay Zeng's pi-memory helpers.",
   "type": "module",
   "main": "index.ts",

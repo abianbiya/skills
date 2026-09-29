@@ -94,9 +94,12 @@ Private memory stays outside repositories by default:
   global/
     MEMORY.md
     SCRATCHPAD.md
+    REVIEW.json                # optional last-reviewed timestamp; never injected or searched
     daily/YYYY-MM-DD.md
     recovery/<uuid>.json
   projects/<sha256-of-canonical-working-tree-root>/
+    PROJECT.json               # optional display name; never injected or searched
+    REVIEW.json                # optional last-reviewed timestamp; never injected or searched
     MEMORY.md
     SCRATCHPAD.md
     daily/YYYY-MM-DD.md
@@ -113,7 +116,10 @@ Use `memory_status` to inspect the active project root/hash and exact directorie
 Legacy `PI_MEMORY_*` variables are not used; Lean Memory does not mutate them or
 share upstream's process-global storage state. Configure environment before
 launch/reload. Storage is shared across profiles using the same root, separated
-by canonical working tree. Memory is local/private and never packaged or committed.
+by canonical working tree. On the first project memory write, `PROJECT.json` stores
+the sanitized repository-root basename for the browser label; it is never injected or
+searched. Existing scopes are not backfilled and receive a name only after a later
+project write. Memory is local/private and never packaged or committed.
 
 Team-shared instructions belong in project `AGENTS.md`, not private memory.
 
@@ -151,29 +157,42 @@ memory_read(target="daily", date="2026-09-15", offset=0, limit=4000)
 lists for this project and for global memory, each row showing its count or size.
 Selecting a row shows its contents, then returns to the list; dismissing the picker
 closes it. It writes nothing and reads disk directly, so it shows what another session
-or an external editor has already saved. There is no global/cross-project row: another
-project's memory is not reachable from here. Without an interactive UI (print/JSON
-mode) the same inventory is emitted as one text notification instead of dialogs.
+or an external editor has already saved. This picker is limited to the active project
+and global memory; use the explicitly opened HTML viewer below for all-project browsing.
+Without an interactive UI (print/JSON mode) the same inventory is emitted as one text
+notification instead of dialogs.
 
 #### `/memory html` — browser view
 
-Serves the same inventory as a local web page and opens it, so long facts and task
-lists are readable in a real browser instead of a dialog. `/memory close` stops it.
+Opens a simple local browser UI to browse global memory and every stored project
+(the active project shows its basename; unnamed saved scopes use readable numbered
+labels), including Markdown files such as daily logs and topics. Markdown headings,
+lists, emphasis, quotes, links and code are rendered safely; raw HTML remains text.
+Its Prompt context view separates the latest exact
+Lean-Memory-added prompt segment from a fresh project simulation, with character
+counts and a rough `characters / 4` token estimate. The simulation includes only
+facts and open tasks; daily/topic files are not auto-injected. The base Pi prompt is
+never shown. `/memory close` stops the viewer.
 
 - **Loopback only.** The socket binds `127.0.0.1` on an OS-assigned port — never a
   wildcard address, so other machines cannot reach it.
 - **Token-gated.** A per-run random token is required (`/?token=…`, compared in
   constant time). Requests without it get `403`. The port is shown in the status line;
   the token is not, and is not logged.
-- **Read-only, no filesystem surface.** Only `/` (a static shell) and `/data` (JSON) are
-  served. No request path, header or body is ever turned into a path, and no write
-  endpoint exists.
-- **Injection-proof.** The shell carries no memory content; entries are rendered
-  client-side with `textContent`, so a note containing `<script>` or `<img onerror>…`
+- **Read-only, constrained endpoints.** `/` serves a static shell; `/data`, `/file`,
+  and `/context` return inventory, one allow-listed memory file, or a context preview.
+  Request values are checked against discovered project IDs and eligible file lists;
+  no arbitrary path is accepted and no write endpoint exists. Cross-project inspection
+  is limited to this explicitly opened, token-gated viewer; memory tools and search
+  keep their existing scope rules.
+- **Injection-proof.** The shell carries no memory content; the Markdown view builds
+  DOM nodes and uses `textContent`, so raw HTML such as `<script>` or `<img onerror>…`
   displays as literal text and cannot execute. A CSP of `default-src 'none'` blocks
-  every external load.
+  external loads.
 - **Live.** The page polls every 2s, so writes from tools appear without a reload. It
-  follows the project it was opened from even if the working directory later changes.
+  keeps the project it was opened from marked active even if the working directory
+  later changes; actual injection shows the most recently captured prompt addition.
+  Project simulations read the current disk snapshot and are labeled as simulations.
 - **Ephemeral.** The server is unref'd: it never holds the pi process open, dies with
   the session, and does not survive a restart. Re-running `/memory html` replaces it.
 
@@ -181,9 +200,19 @@ Auto-launching the browser only happens in TUI mode. On a remote or headless hos
 URL is announced instead, so nothing opens on the wrong machine. In print/JSON mode the
 browser view is unavailable and `/memory` prints a listing.
 
-The file list/status identifies directories for reading manually maintained topic
-files with normal filesystem tools. Unrelated legacy archives are not part of
-search, even if the old qmd collection still indexes them.
+The HTML viewer includes eligible topic Markdown contents. Unrelated legacy archives
+are not part of the viewer or search, even if the old qmd collection still indexes them.
+
+#### `/memory review` — periodic review
+
+On the first interactive use of non-empty global or current-project facts/open tasks,
+Lean Memory reminds you if that scope has never been reviewed or its last review was
+at least 30 days ago. It checks only global plus the active project; it never scans
+other projects. `/memory review` asks the assistant for evidence-based keep/update/
+consider-removing suggestions. That user-initiated review turn has no tools and cannot
+change memory. After reviewing the recommendations, run `/memory review done` to save
+the review date for the scopes included. Daily logs/topics are outside this review.
+There are no background model calls, automatic edits, or automatic deletions.
 
 ## Stable context and limits
 

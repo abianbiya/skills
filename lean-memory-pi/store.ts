@@ -3,7 +3,7 @@ import { createHash, randomUUID } from "node:crypto";
 import * as fs from "node:fs/promises";
 import { constants } from "node:fs";
 import { homedir } from "node:os";
-import { dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
+import { basename, dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { promisify } from "node:util";
 import { setTimeout as delay } from "node:timers/promises";
 // Reuse upstream's line-preserving mutations and entry-aware deletion, not its global runtime.
@@ -12,6 +12,7 @@ import { forgetBlocks, parseScratchpad, scratchpadAdd, scratchpadClearDone, scra
 
 const exec = promisify(execFile);
 const MAX_FILE = 1024 * 1024;
+const REVIEW_INTERVAL_MS = 30 * 24 * 60 * 60 * 1000;
 export type Scope = "project" | "global";
 export type Target = "long_term" | "daily";
 export interface Project { root: string; id: string }
@@ -109,6 +110,20 @@ function required(value: string | undefined): string {
 	return value;
 }
 
+function cleanProjectName(value: string): string | undefined {
+	const name = value.replace(/[\u0000-\u001f\u007f]/g, " ").trim().slice(0, 80).trim();
+	return name && name !== "." && name !== ".." ? name : undefined;
+}
+
+function isIsoTimestamp(value: string): boolean {
+	const time = Date.parse(value);
+	return Number.isFinite(time) && new Date(time).toISOString() === value;
+}
+
+export function reviewIsDue(lastReviewedAt: string | undefined, now = Date.now()): boolean {
+	return !lastReviewedAt || now - Date.parse(lastReviewedAt) >= REVIEW_INTERVAL_MS;
+}
+
 export class MemoryStore {
 	readonly root: string;
 	constructor(root = process.env.LEAN_MEMORY_DIR ?? join(homedir(), ".pi", "agent", "memory")) {
@@ -122,6 +137,72 @@ export class MemoryStore {
 		if (!project) throw new Error("No project identified. Use scope: global explicitly, or set LEAN_MEMORY_PROJECT_ROOT for a non-Git project.");
 		if (!/^[a-f0-9]{64}$/.test(project.id)) throw new Error("Invalid project identity.");
 		return { scope, dir: join(this.root, "projects", project.id), project };
+	}
+
+	async projectIds(): Promise<string[]> {
+		const isMissing = (error: unknown) => (error as NodeJS.ErrnoException).code === "ENOENT";
+		let rootStat;
+		try { rootStat = await fs.lstat(this.root); }
+		catch (error) { if (isMissing(error)) return []; throw error; }
+		if (!rootStat.isDirectory() || rootStat.isSymbolicLink()) throw new Error("Refusing unsafe memory root.");
+		const projectsPath = join(this.root, "projects");
+		let projectsStat;
+		try { projectsStat = await fs.lstat(projectsPath); }
+		catch (error) { if (isMissing(error)) return []; throw error; }
+		if (!projectsStat.isDirectory() || projectsStat.isSymbolicLink()) throw new Error("Refusing unsafe projects directory.");
+		const entries = await fs.readdir(projectsPath, { withFileTypes: true });
+		const ids: string[] = [];
+		for (const entry of entries) {
+			if (!/^[a-f0-9]{64}$/.test(entry.name) || !entry.isDirectory() || entry.isSymbolicLink()) continue;
+			const stat = await fs.lstat(join(projectsPath, entry.name));
+			if (stat.isDirectory() && !stat.isSymbolicLink()) ids.push(entry.name);
+		}
+		return ids.sort();
+	}
+
+	async projectName(project: Project): Promise<string | undefined> {
+		const raw = await this.read(this.location("project", project), "PROJECT.json");
+		if (!raw) return undefined;
+		try {
+			const metadata = JSON.parse(raw);
+			if (metadata.version !== 1 || metadata.projectId !== project.id || typeof metadata.name !== "string") return undefined;
+			return cleanProjectName(metadata.name);
+		} catch { return undefined; }
+	}
+
+	async hasReviewableContent(location: Location): Promise<boolean> {
+		if ((await this.read(location, "MEMORY.md")).trim()) return true;
+		return parseScratchpad(await this.read(location, "SCRATCHPAD.md")).some(item => !item.done);
+	}
+
+	async lastReviewedAt(location: Location): Promise<string | undefined> {
+		const raw = await this.read(location, "REVIEW.json");
+		if (!raw.trim()) return undefined;
+		let metadata: unknown;
+		try { metadata = JSON.parse(raw); }
+		catch { throw new Error(`Invalid review metadata in ${location.scope} memory.`); }
+		if (!metadata || typeof metadata !== "object" || Array.isArray(metadata)) throw new Error(`Invalid review metadata in ${location.scope} memory.`);
+		const record = metadata as Record<string, unknown>;
+		if (record.version !== 1 || typeof record.lastReviewedAt !== "string" || !isIsoTimestamp(record.lastReviewedAt)) {
+			throw new Error(`Invalid review metadata in ${location.scope} memory.`);
+		}
+		return record.lastReviewedAt;
+	}
+
+	async markReviewed(location: Location, lastReviewedAt = new Date().toISOString()): Promise<void> {
+		if (!isIsoTimestamp(lastReviewedAt)) throw new Error("Review timestamp must be an ISO date-time.");
+		await this.locked(location, async () => {
+			if ((await this.read(location, "REVIEW.json")).trim()) await this.lastReviewedAt(location);
+			await this.atomic(location, "REVIEW.json", `${JSON.stringify({ version: 1, lastReviewedAt }, null, 2)}\n`);
+		});
+	}
+
+	private async saveProjectNameIfMissing(location: Location): Promise<void> {
+		if (location.scope !== "project" || !location.project?.root) return;
+		if (await this.read(location, "PROJECT.json")) return;
+		const name = cleanProjectName(basename(location.project.root));
+		if (!name) return;
+		await this.atomic(location, "PROJECT.json", `${JSON.stringify({ version: 1, projectId: location.project.id, name }, null, 2)}\n`);
 	}
 
 	// Check every memory-owned component, not just the final filename. A symlink
@@ -204,6 +285,7 @@ export class MemoryStore {
 		if (target === "daily" && mode === "overwrite") throw new Error("Daily logs are append-only.");
 		const file = targetFile(target, date);
 		await this.locked(location, async () => {
+			await this.saveProjectNameIfMissing(location);
 			const before = await this.read(location, file);
 			if (mode === "overwrite" && before) await this.backup(location, file, before);
 			await this.atomic(location, file, append(mode === "overwrite" ? "" : before, `${stamp()}\n${content}`));
@@ -233,6 +315,7 @@ export class MemoryStore {
 				after = scratchpadClearDone(before).content;
 				if (after !== before) await this.backup(location, "SCRATCHPAD.md", before);
 			} else throw new Error("Unknown scratchpad action.");
+			if (action === "add") await this.saveProjectNameIfMissing(location);
 			await this.atomic(location, "SCRATCHPAD.md", after);
 			return after;
 		});
@@ -294,6 +377,12 @@ export class MemoryStore {
 		};
 		await walk("", 0);
 		return { files, truncated };
+	}
+
+	async readListedFile(location: Location, file: string): Promise<string> {
+		const listed = await this.files(location);
+		if (!listed.files.includes(file)) throw new Error("Memory file is not available in this scope.");
+		return this.read(location, file);
 	}
 
 	async readTarget(location: Location, target: string, date?: string, offset = 0, limit = 4000): Promise<string> {
