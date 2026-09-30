@@ -1,6 +1,6 @@
 {
 	"name": "@abianbiya/specflow",
-	"version": "0.1.5",
+	"version": "0.1.7",
 	"description": "SpecFlow for pi: outcome-first planning with configurable assurance, evaluation-safe review packets, a live cockpit panel, and the /specflow picker.",
 	"keywords": [
 		"pi-package",

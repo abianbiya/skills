@@ -106,10 +106,23 @@ export function phaseLabel(phase: SpecflowPhase): string {
 	}
 }
 
-/** " · {done}/{total}" when tasks exist, plus the read-failure marker. */
-function metaSuffix(spec: SpecflowSpec): string {
-	const count = spec.total > 0 ? ` · ${spec.done}/${spec.total}` : "";
-	return `${count}${spec.error ? " · unreadable" : ""}`;
+/** Compact workflow rail; completed/archived specs have no active phase. */
+function phaseRail(spec: SpecflowSpec): string {
+	if (spec.phase === "archived") return "Archived";
+	const stages = ["Requirements", "Design", "Tasks", "Delivery"];
+	if (spec.phase === "done") return stages.map((stage) => `${stage} ✓`).join(" ─ ");
+	return stages
+		.map((stage, index) => `${stage} ${index + 1 < spec.phase ? "✓" : index + 1 === spec.phase ? "●" : "○"}`)
+		.join(" ─ ");
+}
+
+/** Ten-cell visual bar plus exact task completion percentage. */
+function progressLine(spec: SpecflowSpec): string | undefined {
+	if (spec.total <= 0) return undefined;
+	const percent = Math.max(0, Math.min(100, Math.round((spec.done / spec.total) * 100)));
+	const filled = Math.round((percent / 100) * 10);
+	const bar = "█".repeat(filled) + "░".repeat(10 - filled);
+	return `  Progress  [${bar}] ${percent}% · ${spec.done}/${spec.total}`;
 }
 
 /**
@@ -159,11 +172,8 @@ export function traceWarningLine(spec: SpecflowSpec): string | undefined {
 }
 
 /**
- * Render the panel lines for `spec` within `width`: an opening rule, the
- * heading (name, frontmatter status, task count), the phase rail with the
- * optional review-gate badge, the next-action row, and at most one traceability
- * warning row (AC1, AC4, AC5). `truncate` must be width-aware for the final
- * text; `maxLines` caps the total returned rows.
+ * Render the panel heading, workflow rail, task progress, and next action.
+ * `truncate` must be width-aware for the final text; `maxLines` caps the rows.
  */
 export function renderWidgetLines(
 	spec: SpecflowSpec,
@@ -174,16 +184,16 @@ export function renderWidgetLines(
 ): string[] {
 	const rule = truncate(styler(` ${"─".repeat(Math.max(0, width - 2))}`, "rule"), width);
 	const heading =
-		styler(`${INDENT}Specflow: ${spec.name}`, "heading") + styler(` · ${spec.status}${metaSuffix(spec)}`, "meta");
-	const rail =
-		`${INDENT}${styler(phaseLabel(spec.phase), "phase")}` +
-		(spec.gate !== null ? styler(" · awaiting your review", "gate") : "");
+		styler(`${INDENT}SpecFlow · ${spec.name}`, "heading") +
+		styler(` · ${spec.status}${spec.error ? " · unreadable" : ""}`, "meta") +
+		(spec.gate !== null ? styler(" · AWAITING REVIEW", "gate") : "");
+	const rail = `${INDENT}${styler(phaseRail(spec), "phase")}`;
 
 	const lines = [rule, truncate(heading, width), truncate(rail, width)];
+	const progress = progressLine(spec);
+	if (progress) lines.push(truncate(styler(progress, "meta"), width));
 	const next = nextActionLine(spec);
 	if (next) lines.push(truncate(styler(`${INDENT}${next}`, "next"), width));
-	const warning = traceWarningLine(spec);
-	if (warning) lines.push(truncate(styler(`${INDENT}${warning}`, "warn"), width));
 	return lines.slice(0, Math.max(1, maxLines));
 }
 
@@ -353,7 +363,7 @@ export function taskOptions(spec: SpecflowSpec): TaskOption[] {
 }
 
 /** The action a /specflow menu entry performs (AC6). */
-export type CockpitAction = "execute" | "approve" | "validate" | "settings" | "document" | "toggle";
+export type CockpitAction = "execute" | "approve" | "validate" | "complete" | "archive" | "settings" | "document" | "toggle";
 
 export interface ActionOption {
 	label: string;
@@ -371,6 +381,15 @@ export function actionOptions(spec: SpecflowSpec, hidden: boolean): ActionOption
 	if (metadataAllowsExecution && spec.tasks.some((t) => !t.done)) actions.push({ label: "Execute a task…", action: "execute" });
 	if (spec.status === "active" && spec.gate === "review" && !spec.error) actions.push({ label: "Approve gate and resume", action: "approve" });
 	if (spec.tasks.length > 0) actions.push({ label: "Validate implementation", action: "validate" });
+	if (
+		spec.status === "active" &&
+		!spec.error &&
+		spec.tasks.length > 0 &&
+		spec.tasks.every((task) => task.done)
+	) {
+		actions.push({ label: "Mark complete…", action: "complete" });
+	}
+	if (!isFinished(spec)) actions.push({ label: "Archive spec…", action: "archive" });
 
 	if (!isFinished(spec)) actions.push({ label: "Workflow settings…", action: "settings" });
 	actions.push({ label: "Open document…", action: "document" });

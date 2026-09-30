@@ -203,7 +203,13 @@ async function openDocumentPopup(
  */
 async function runCockpitAction(
 	pi: ExtensionAPI,
-	ctx: { ui: { select: (title: string, options: string[]) => Promise<string | undefined>; notify: (m: string, t?: string) => void } },
+	ctx: {
+		ui: {
+			select: (title: string, options: string[]) => Promise<string | undefined>;
+			input: (title: string, placeholder?: string) => Promise<string | undefined>;
+			notify: (m: string, t?: string) => void;
+		};
+	},
 	spec: SpecflowSpec,
 	action: CockpitAction,
 	projectFile: string,
@@ -238,6 +244,19 @@ async function runCockpitAction(
 		case "validate":
 			confirm(`Validate the ${spec.name} spec implementation.`);
 			return;
+		case "complete":
+			confirm(
+				`Complete the SpecFlow at ${JSON.stringify(spec.dir)} only after verifying its approved delivery target, required evidence, and handoff. If any completion condition is unmet, report what remains and do not mark it completed. Record owner acceptance separately.`,
+			);
+			return;
+		case "archive": {
+			const reason = (await ctx.ui.input(`Archive ${spec.name}`, "Reason for archiving"))?.trim();
+			if (!reason) return;
+			confirm(
+				`Archive the SpecFlow at ${JSON.stringify(spec.dir)} in place. User-supplied reason: ${JSON.stringify(reason)}. Preserve its documents and update lifecycle metadata per the SpecFlow skill.`,
+			);
+			return;
+		}
 		case "document": {
 			const docs = documentOptions(spec, projectFile);
 			const picked = await ctx.ui.select(`Document: ${spec.name}`, docs.map((d) => d.label));
@@ -332,38 +351,68 @@ export default function specflowTui(pi: ExtensionAPI) {
 				return;
 			}
 
-			const active = controller.active();
-			// Retired specs are hidden from this list; "Show finished" is what brings
-			// them back, so an empty list still gets that entry below.
-			const options = pickerOptions(visibleSpecs(controller.specs, controller.showFinished));
-			const actions = active ? actionOptions(active, controller.hidden) : [];
-			const finishedLabel = controller.showFinished ? "Hide finished" : "Show finished";
-			const choice = await ctx.ui.select(active ? `Specflow: ${active.name}` : "Specflow:", [
-				...actions.map((a) => a.label),
-				finishedLabel,
-				...options.map((o) => o.label),
-			]);
-			if (choice === undefined) return; // cancelled — keep current selection (AC3, AC7)
+			const backLabel = "← Back";
+			const divider = "──────── Specs ────────";
+			while (true) {
+				const active = controller.active();
+				// Retired specs are hidden from this list; "Show finished" is what brings
+				// them back. Keep actions visually separate from spec navigation.
+				const options = pickerOptions(visibleSpecs(controller.specs, controller.showFinished));
+				const actions = active ? actionOptions(active, controller.hidden) : [];
+				const finishedLabel = controller.showFinished
+					? "Hide finished"
+					: active
+						? "Show finished"
+						: "Show finished (no active specs)";
+				const choice = await ctx.ui.select(active ? `SpecFlow: ${active.name}` : "SpecFlow: no active spec", [
+					...actions.map((a) => a.label),
+					divider,
+					finishedLabel,
+					...options.map((o) => o.label),
+				]);
+				if (choice === undefined) return; // Escape keeps the current selection.
+				if (choice === divider) continue; // visual section label; not an action
 
-			if (choice === finishedLabel) {
-				controller.setShowFinished(!controller.showFinished);
-				return;
-			}
+				if (choice === finishedLabel) {
+					controller.setShowFinished(!controller.showFinished);
+					continue;
+				}
 
-			const action = actions.find((a) => a.label === choice);
-			if (action && active) {
-				if (action.action === "toggle") {
-					controller.hidden ? controller.show() : controller.hide();
+				const action = actions.find((a) => a.label === choice);
+				if (action && active) {
+					if (action.action === "toggle") {
+						controller.hidden ? controller.show() : controller.hide();
+						return;
+					}
+					await runCockpitAction(pi, ctx, active, action.action, join(specflowDir, "project.md"));
 					return;
 				}
-				await runCockpitAction(pi, ctx, active, action.action, join(specflowDir, "project.md"));
-				return;
-			}
 
-			const picked = options.find((o) => o.label === choice);
-			if (picked) {
+				const picked = options.find((o) => o.label === choice);
+				if (!picked) continue;
 				controller.pin(picked.dir);
 				controller.show(); // picking a specflow also reveals the panel
+
+				// A spec choice opens its own action menu. Escape or Back returns to
+				// the main list; the selected spec remains active there.
+				while (true) {
+					const selected = controller.active();
+					if (!selected) break;
+					const selectedActions = actionOptions(selected, controller.hidden);
+					const actionChoice = await ctx.ui.select(`SpecFlow: ${selected.name}`, [
+						...selectedActions.map((a) => a.label),
+						backLabel,
+					]);
+					if (actionChoice === undefined || actionChoice === backLabel) break;
+					const selectedAction = selectedActions.find((a) => a.label === actionChoice);
+					if (!selectedAction) continue;
+					if (selectedAction.action === "toggle") {
+						controller.hidden ? controller.show() : controller.hide();
+						return;
+					}
+					await runCockpitAction(pi, ctx, selected, selectedAction.action, join(specflowDir, "project.md"));
+					return;
+				}
 			}
 		},
 	});

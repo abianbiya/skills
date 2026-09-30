@@ -119,28 +119,28 @@ describe("phaseLabel", () => {
 });
 
 describe("renderWidgetLines", () => {
-	test("renders rule, heading with status and count, and the phase rail", () => {
-		const lines = renderWidgetLines(spec({ name: "specflow-pi", status: "active", done: 3, total: 6, phase: 4 }), 80, 6, truncate, plainStyler);
-		expect(lines).toHaveLength(3);
+	test("renders heading, full phase rail, and task progress bar", () => {
+		const lines = renderWidgetLines(spec({ name: "specflow-pi", status: "active", done: 3, total: 7, phase: 4 }), 100, 6, truncate, plainStyler);
+		expect(lines).toHaveLength(4);
 		expect(lines[0].startsWith(" ─")).toBe(true);
-		expect(lines[1]).toContain("Specflow: specflow-pi");
-		expect(lines[1]).toContain("· active · 3/6");
-		expect(lines[2]).toContain("Phase 4/4 Execution");
+		expect(lines[1]).toContain("SpecFlow · specflow-pi · active");
+		expect(lines[2]).toContain("Requirements ✓ ─ Design ✓ ─ Tasks ✓ ─ Delivery ●");
+		expect(lines[3]).toContain("Progress  [████░░░░░░] 43% · 3/7");
 	});
 
 	test("omits the count segment when no task is declared", () => {
 		const lines = renderWidgetLines(spec({ phase: 1 }), 80, 6, truncate, plainStyler);
-		expect(lines[1]).toContain("Specflow: demo · active");
+		expect(lines[1]).toContain("SpecFlow · demo · active");
 		expect(lines[1]).not.toContain("0/0");
-		expect(lines[2]).toContain("Phase 1/4 Requirements");
+		expect(lines[2]).toContain("Requirements ● ─ Design ○ ─ Tasks ○ ─ Delivery ○");
+		expect(lines.some((line) => line.includes("Progress"))).toBe(false);
 	});
 
 	test("gate badge is orthogonal to the phase label and only when present", () => {
 		const gated = renderWidgetLines(spec({ phase: 3, gate: "review" }), 80, 6, truncate, plainStyler);
-		expect(gated[2]).toContain("Phase 3/4 Tasks");
-		expect(gated[2]).toContain("awaiting your review");
+		expect(gated[1]).toContain("AWAITING REVIEW");
 		const clear = renderWidgetLines(spec({ phase: 3 }), 80, 6, truncate, plainStyler);
-		expect(clear[2]).not.toContain("awaiting your review");
+		expect(clear[1]).not.toContain("AWAITING REVIEW");
 	});
 
 	test("marks unreadable specs and honors the line budget", () => {
@@ -361,16 +361,19 @@ describe("taskOptions (AC7)", () => {
 });
 
 describe("actionOptions (AC6)", () => {
-	test("retired specs do not offer configuration changes", () => {
+	test("retired specs do not offer lifecycle or configuration actions", () => {
 		for (const status of ["completed", "archived"] as const) {
-			expect(actionOptions(spec({ status }), false).some((option) => option.action === "settings")).toBe(false);
+			const actions = actionOptions(spec({ status }), false);
+			expect(actions.some((option) => option.action === "settings")).toBe(false);
+			expect(actions.some((option) => option.action === "complete" || option.action === "archive")).toBe(false);
 		}
 	});
-	test("offers execute, validate, document and toggle for a running spec", () => {
+	test("offers execute, validate, archive, document and toggle for a running spec", () => {
 		const s = spec({ tasks: [task("1.1")], total: 1 });
 		expect(actionOptions(s, false)).toEqual([
 			{ label: "Execute a task…", action: "execute" },
 			{ label: "Validate implementation", action: "validate" },
+			{ label: "Archive spec…", action: "archive" },
 			{ label: "Workflow settings…", action: "settings" },
 			{ label: "Open document…", action: "document" },
 			{ label: "Hide panel", action: "toggle" },
@@ -382,6 +385,7 @@ describe("actionOptions (AC6)", () => {
 		expect(actionOptions(gated, true).map((a) => a.action)).toEqual([
 			"approve",
 			"validate",
+			"archive",
 			"settings",
 			"document",
 			"toggle",
@@ -400,42 +404,49 @@ describe("actionOptions (AC6)", () => {
 		}
 	});
 
-	test("hides execute and validate when there is no task work", () => {
-		expect(actionOptions(spec({ total: 0 }), false).map((a) => a.action)).toEqual(["settings", "document", "toggle"]);
-		expect(actionOptions(spec({ tasks: [task("1.1", true)], done: 1, total: 1 }), false).map((a) => a.action)).toEqual([
-			"validate",
+	test("offers archive without task work and completion only when all active tasks are done", () => {
+		expect(actionOptions(spec({ total: 0 }), false).map((a) => a.action)).toEqual([
+			"archive",
 			"settings",
 			"document",
 			"toggle",
 		]);
+		expect(actionOptions(spec({ tasks: [task("1.1", true)], done: 1, total: 1 }), false).map((a) => a.action)).toEqual([
+			"validate",
+			"complete",
+			"archive",
+			"settings",
+			"document",
+			"toggle",
+		]);
+		expect(
+			actionOptions(spec({ tasks: [task("1.1", true)], status: "completed" }), false).map((a) => a.action),
+		).not.toContain("complete");
 	});
 });
 
-describe("renderWidgetLines with the cockpit rows (AC4, AC5)", () => {
-	test("adds the next-action row and the warning row within the budget", () => {
+describe("renderWidgetLines cockpit layout", () => {
+	test("shows progress and next action without a traceability warning row", () => {
 		const s = spec({
 			tasks: [task("1.1", false, ["- Criteria: AC7"])],
 			criteria: ["AC1"],
-			total: 1,
+			done: 3,
+			total: 7,
 			phase: 4,
 		});
 		const lines = renderWidgetLines(s, 90, 6, truncate, plainStyler);
 		expect(lines).toHaveLength(5);
-		expect(lines[3]).toBe("  Next: 1.1 1.1 work");
-		expect(lines[4]).toBe("  ⚠ 1 unclaimed AC · 1 orphan criterion");
+		expect(lines[3]).toContain("Progress  [████░░░░░░] 43% · 3/7");
+		expect(lines[4]).toBe("  Next: 1.1 1.1 work");
+		expect(lines.some((line) => line.includes("⚠"))).toBe(false);
 		expect(lines.every((l) => l.length <= 90)).toBe(true);
 	});
 
-	test("a consistent spec shows no warning row", () => {
-		const s = spec({ tasks: [task("1.1", false, ["- Criteria: AC1"])], criteria: ["AC1"], total: 1 });
-		const lines = renderWidgetLines(s, 90, 6, truncate, plainStyler);
-		expect(lines).toHaveLength(4);
-		expect(lines.some((l) => l.includes("⚠"))).toBe(false);
-	});
-
-	test("metadata errors are visible in the warning row", () => {
+	test("metadata errors remain visible without a warning row", () => {
 		const lines = renderWidgetLines(spec({ tasks: [task("1.1")], total: 1, error: "requires YAML frontmatter" }), 90, 6, truncate, plainStyler);
-		expect(lines.at(-1)).toContain("metadata/error");
+		expect(lines[1]).toContain("unreadable");
+		expect(lines.at(-1)).toContain("Fix spec metadata/error before execution");
+		expect(lines.some((line) => line.includes("⚠"))).toBe(false);
 	});
 
 	test("a requirements-only spec keeps the three base rows", () => {

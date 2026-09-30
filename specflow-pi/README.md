@@ -28,14 +28,16 @@ pi install -l /absolute/path/to/specflow-pi
 ## Usage
 
 - Ask for a new app: the agent conducts a staged interview across project foundations, requirements/behavior, experience/technical design, and executable tasks for the requested delivery target. For a whole-app request, it plans all agreed in-scope work across milestones before one plan review. It summarizes decisions between rounds and can recommend unchosen technologies for confirmation. Ask for an existing-project feature: the agent first inspects the repository and focuses questions on material unknowns.
-- Live panel — the selected spec's name, phase (Requirements / Design / Tasks / Executing), done/total task count, status, and gate badge, updating within ~0.5 s of file edits. Specs that are `completed` or `archived` are retired: the panel stops following them and the `/specflow` list stops showing them, in this session and in every later one. Archives stay where they are — specflow never moves directories.
-- `/specflow` — act on the active spec without leaving the terminal:
+- Live panel — the selected spec's name and status, a Requirements / Design / Tasks / Delivery phase rail, task progress bar and next action, updating within ~0.5 s of file edits. A pending review remains visible in the heading. Specs that are `completed` or `archived` are retired: the panel stops following them and the `/specflow` list stops showing them by default. Archives stay where they are — specflow never moves directories.
+- `/specflow` — act on the active spec without leaving the terminal. The active spec's actions appear first, followed by a divider and the spec list. Selecting another spec opens its targeted action menu; choose **← Back** or press Escape to return to the list.
   - **Execute a task…** — when the spec is active and ungated, pick an unfinished task (`▶` ready, `⏸` blocked, with what it waits on); the selected task is sent to the agent. For hands-off whole-plan execution, ask the agent to execute the already approved plan through final handoff.
   - **Approve gate and resume** — sends your approval of only the recorded decision. For a plan review, the plan must state the requested execution scope separately from the still-unapproved authority; approval authorizes exactly that requested scope, not unlisted work. A prototype approval does not grant application implementation authority.
   - **Workflow settings…** — choose assurance 1–10, delivery target, review cadence, or planning detail for this spec. Canceling sends nothing; selecting a value requests an agent edit, not application execution.
   - **Validate implementation** / **Open document…** — `requirements.md`, `design.md`, `tasks.md`, or `project.md` in a scrollable popup. Metadata errors remain visible instead of making a spec runnable by guesswork.
+  - **Mark complete…** — offered when all active tasks are checked; asks the agent to verify delivery evidence and handoff before updating lifecycle status.
+  - **Archive spec…** — asks for a reason, then sends the in-place archive request to the agent.
   - **Hide/Show panel**, **Show/Hide finished**, and the spec list to switch which spec the panel follows (**Show finished** also lists `completed` and `archived` specs so you can read one again)
-- Panel rows, beyond the phase: `Next: 2.1 Wire the Fastify hook` (first task whose dependencies are done), and one warning row when traceability is incomplete — `⚠ 1 unclaimed AC · 1 orphan criterion · 1 dangling dep`, i.e. requirements no task implements, citations of ACs that don't exist, and `Depends on:` ids that don't resolve.
+- The panel's next-action row names the first ready task or explains what is blocking progress. Traceability warnings remain available through validation, not in the compact cockpit.
 - `resume` / `complete` / `archive` — lifecycle routes from the skill; the panel reflects the reconciled state.
 
 ## Workflow preferences
